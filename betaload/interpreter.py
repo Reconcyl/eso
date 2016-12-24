@@ -12,7 +12,7 @@ class Stack:
             raise TypeError("value must be of type " + self.type.__name__)
         self.stack.append(value)
     def error(self):
-        raise RuntimeError("inspected an empty stack")
+        raise RuntimeError("stack too small for operation")
     def pop(self):
         if len(self.stack) == 0:
             self.error()
