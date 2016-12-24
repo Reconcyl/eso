@@ -49,7 +49,6 @@ class BetaloadEnv:
                 + "".join("(" + s + ")" for s in self.strStack.stack) \
                 + "".join(s.betaloadRepr() for s in self.envStack.stack) \
                 + "}"
-        
 
 rootEnv = BetaloadEnv()
 environments = Stack(BetaloadEnv) # the path to the current environment
