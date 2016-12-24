@@ -50,6 +50,11 @@ class BetaloadEnv:
                 + "".join(s.betaloadRepr() for s in self.envStack.stack) \
                 + "}"
 
+"""
+Variables needed for interpretation.
+These are created and initialized outside the function because
+multiple calls to interpret() must preserve state.
+"""
 rootEnv = BetaloadEnv()
 environments = Stack(BetaloadEnv) # the path to the current environment
 initEnv = copy.copy(environments) # a save that can be returned to on error
