@@ -46,5 +46,5 @@ There is also a console mode. To start it, run the interpreter as `python interp
     #{#{(SS)}}
     b > (foo):<^
     foofoo
-    b > ;>;
+    b > ;!;
     #
