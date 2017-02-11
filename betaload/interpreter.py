@@ -95,7 +95,7 @@ def interpret(programCode):
             if env.active is env.strStack: # on the string stack
                 env.strStack.push("(" + a + ")")
             else: # on the env stack
-                env.strStack.push(env.envStack.pop().betaloadRepr()) # hurray for OO!
+                env.strStack.push(a.betaloadRepr())
         elif code[i] == "^": # exec, but without recursion
             code = code[:i+1] + env.strStack.pop() + code[i+1:]
             length = len(code)
@@ -103,21 +103,20 @@ def interpret(programCode):
             print(end=env.strStack.pop())
             didOutput = True
         elif code[i] == "R": # input
-            print(i, length)
             chrMapping = {}
             while len(env.strStack[0]) == 1:
                 char = env.strStack.pop()
                 assoCode = env.strStack.pop()
                 chrMapping[char] = assoCode
             env.strStack.pop() # the last value is not a single character, so it is deleted
-            inputString = input()
+            with open("input.txt") as f:
+                inputString = f.read()
             newString = ""
             for c in inputString:
                 if c in chrMapping:
                     newString += chrMapping[c]
             env.strStack.push(newString)
             didOutput = True # at least, text was written to the console (what you typed)
-            print(i, length)
         elif code[i] == ";":
             env.switch()
         elif code[i] == "#":
