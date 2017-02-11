@@ -100,14 +100,15 @@ def interpret(programCode):
             code = code[:i+1] + env.strStack.pop() + code[i+1:]
             length = len(code)
         elif code[i] == "S": # print
-            print(env.strStack.pop(), end="")
+            print(end=env.strStack.pop())
             didOutput = True
         elif code[i] == "R": # input
+            print(i, length)
             chrMapping = {}
             while len(env.strStack[0]) == 1:
                 char = env.strStack.pop()
-                code = env.strStack.pop()
-                chrMapping[char] = code
+                assoCode = env.strStack.pop()
+                chrMapping[char] = assoCode
             env.strStack.pop() # the last value is not a single character, so it is deleted
             inputString = input()
             newString = ""
@@ -116,6 +117,7 @@ def interpret(programCode):
                     newString += chrMapping[c]
             env.strStack.push(newString)
             didOutput = True # at least, text was written to the console (what you typed)
+            print(i, length)
         elif code[i] == ";":
             env.switch()
         elif code[i] == "#":
