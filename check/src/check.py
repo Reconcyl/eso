@@ -20,7 +20,15 @@ with open(sys.argv[1]) as f:
 def puts(string):
     print(string, end="")
 
-inputs = [ast.literal_eval(i) for i in sys.argv[2:]]
+def parse(string):
+    try:
+        obj = ast.literal_eval(string)
+    except (ValueError, SyntaxError):
+        malformed_input()
+    else:
+        return checkify(obj)
+    
+inputs = [parse(i) for i in sys.argv[2:]]
 try:
     interpreter.run(code, inputs, puts)
 except interpreter.CheckError as e:
