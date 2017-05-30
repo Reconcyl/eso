@@ -54,4 +54,4 @@ With one-dimensional semantics, control always proceeds forwards. When it reache
 - `R` pushes the value from the register onto the stack.
 - `` ` `` prints everything in the stack for debugging.
 
-Attempting to execute an invalid instruction in either language will error. If the interpreter ever prints a stack trace, there was a bug.
+Attempting to execute an invalid instruction in either mode will error. If the interpreter ever prints a stack trace, there was a bug.
