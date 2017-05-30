@@ -1,0 +1,2 @@
+#v  A truth machine. Prints 0 if the input is 0, and infinite 1s if the input is 1.
+ #p?
