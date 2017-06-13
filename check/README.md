@@ -49,7 +49,7 @@ With one-dimensional semantics, control always proceeds forwards. When it reache
 - `.` makes the entire stack into an array.
 - `&` unpacks all array values onto the stack.
 - `,` gets a range `[0,n)` on an integer and gets the length of an array.
-- `{` gets the element of an array at an integer index.
+- `=` gets the element of an array at an integer index.
 - `r` pops a value and stores it in the register.
 - `R` pushes the value from the register onto the stack.
 - `` ` `` prints everything in the stack for debugging.
