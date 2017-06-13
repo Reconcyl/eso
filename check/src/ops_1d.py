@@ -47,7 +47,7 @@ def type_match(objects, types):
     return True
 
 def error_types(state, c, *args):
-    types = [type(arg).__name__ for arg in args]
+    types = [type(arg) for arg in args]
     state.error("Invalid type for {}: {}".format(c, types))
 
 INTS = (int, int)
@@ -256,7 +256,7 @@ def get_item(state):
     elif type_match((array, index), (int, list)):
         array, index = index, array
     else:
-        error_types(state, "=", array)
+        error_types(state, "=", array, index)
     state.stack.push(array[index])
 
 @operator("r")
