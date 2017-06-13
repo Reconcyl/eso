@@ -12,7 +12,7 @@ o   | output character / string
 )   | increment
 (   | decrement
 p   | output number / array (does not pop)
-<   | output newline (same as >10p)
+<   | output newline (same as >10o)
 !   | boolean NOT
 [   | push empty array
 ]   | wrap in array
