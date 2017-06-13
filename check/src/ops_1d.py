@@ -28,7 +28,7 @@ d   | delete stack item
 .   | make stack into array
 &   | unpack array
 ,   | array length
-{   | get array item
+=   | get array item
 r   | pop and store in register
 R   | get from register
 `   | debug
