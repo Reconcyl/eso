@@ -31,10 +31,12 @@ class InputParser():
         self.string_len = len(input_string)
         self.string = input_string
         self.position = 0
+    def more(self):
+        return (self.position < self.string_len)
     def get_char(self, offset=0):
         pos = self.position + offset
         if pos >= self.string_len:
-            state.error("Out of input")
+            self.state.error("Out of input")
         c = self.string[pos] 
         return c
     def advance(self):
@@ -52,7 +54,10 @@ class InputParser():
                 break
             self.advance()
         digits = [c]
+        self.advance()
         while True:
+            if not self.more():
+                break
             c = self.get_char()
             if c not in self.DIGITS:
                 break

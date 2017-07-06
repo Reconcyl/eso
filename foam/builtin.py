@@ -1,5 +1,3 @@
-import copy
-
 import parse
 
 core_ops = {}
