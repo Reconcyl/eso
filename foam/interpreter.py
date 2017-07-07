@@ -23,6 +23,8 @@ class FoamStack():
         for _ in range(n):
             result.append(self.pop())
         return result[::-1]
+    def get_stack_copy(self):
+        return self.stack[:]
 
 class InputParser():
     DIGITS = "1234567890"
@@ -86,7 +88,10 @@ class FoamState():
     def remove_frame(self):
         self.code.pop()
     def get_frame(self, i):
-        return self.code[~i]
+        try:
+            return self.code[~i]
+        except IndexError:
+            self.error("Tried to access illegal frame")
     def extend_frame(self, i, extension):
         self.get_frame(i).extend(extension[::-1])
     def push_to_frame(self, i, obj):

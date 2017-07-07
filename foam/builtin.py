@@ -34,7 +34,7 @@ def concat(state):
     "Pops two lists from the stack and concatenates them."
     a = state.stack.pop(expect=list)
     b = state.stack.pop(expect=list)
-    state.stack.push(a + b)
+    state.stack.push(b + a)
 
 @core("{_}")
 def wrap(state):
@@ -55,6 +55,9 @@ def swap(state):
     state.stack.push(a)
     state.stack.push(b)
 
+# like {_, but swaps its args first
+alias("{_'", "// {_")
+    
 @core("@")
 def mirror(state):
     "Reverses the top three stack values: a, b, c -> c, b, a"
@@ -124,7 +127,7 @@ def write_self(state):
 @core(".@*")
 def write_self_list(state):
     "Like `.@`, but writes an entire block rather than a single token."
-    a = state.state.stack.pop(expect=list)
+    a = state.stack.pop(expect=list)
     state.extend_frame(1, a)
     
 @core(">#")
@@ -135,6 +138,7 @@ def to_num(state):
         a = int(a)
     except ValueError:
         state.error("String {} cannot be converted to integer".format(repr(a)))
+    state.stack.push(a)
 
  # this is for easily creating numeric literals, i.e. # 10
 alias("#", ",@ >#")
@@ -179,7 +183,10 @@ def current_frame(state):
     "Gets the frame before the calling frame."
     a = state.get_frame_copy(1)
     state.stack.push(a)
-    
+
+# Gets the current frame. For cheating quines, or recursion.
+alias(",@*'", ",@*")
+
 @core(";#")
 def interpret_semicolon_hash(state):
     "Reads a number."
@@ -218,6 +225,12 @@ alias("->", "`* ,@ =.")
 
 @core(":")
 def dup(state):
+    "Pops a value and pushes it back twice."
     a = state.stack.pop()
     state.stack.push(a)
     state.stack.push(a)
+
+@core("_~")
+def splat(state):
+    "Dumps the items in a list to the stack."
+    # fix later
