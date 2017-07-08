@@ -25,4 +25,5 @@ The interpreter also supports using `-i` to specify an input file:
 You can also use `-t` to enable tail-call optimization. However, this
 may break self-modifying programs.
 
-You can find more information about the language on the wiki.
+You can find more information about the language on the wiki. (Note
+that it is currently under development.)
