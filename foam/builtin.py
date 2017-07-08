@@ -1,3 +1,5 @@
+import random
+
 import parse
 
 core_ops = {}
@@ -276,3 +278,145 @@ def zip_with(state):
 
 # enumerate
 alias("#,_", ":# .. // [_,_] _%_")
+
+@core("%")
+def modulo(state):
+    a = state.stack.pop(expect=int)
+    b = state.stack.pop(expect=int)
+    state.stack.push(b % a)
+
+@core("/")
+def int_divide(state):
+    a = state.stack.pop(expect=int)
+    b = state.stack.pop(expect=int)
+    state.stack.push(b % a)
+
+@core("~#~'")
+def run_both(state):
+    amount = state.stack.pop(expect=int)
+    block_2 = state.stack.pop(expect=list)
+    block_1 = state.stack.pop(expect=list)
+    items = state.stack.pop_many(amount)
+    
+    state.stack.push_many(items)
+    state.run(block_1)
+    state.stack.push_many(items)
+    state.run(block_2)
+
+# divmod
+alias("/%", "[/] [%] 2 ~#~")
+
+@core("#/")
+def divisors(state):
+    a = state.stack.pop(expect=int)
+    result = [i for i in range(1, a+1) if a % i == 0]
+    state.stack.push(result)
+
+@core("%=")
+def divisible(state):
+    b = state.stack.pop(expect=int)
+    a = state.stack.push(expect=int)
+    result = int(a % b == 0)
+    state.stack.push(result)
+
+@core("=")
+def equiv(state):
+    a = state.stack.pop()
+    b = state.stack.pop()
+    result = int(a == b)
+    state.stack.push(result)
+
+# count divisorts
+alias("%:#", "#/ ..#")
+# prime - I don't even care about efficiency
+alias("#.%", "%:# 2 =")
+
+@core("?#")
+def random_number(state):
+    a = state.stack.pop(expect=int)
+    if a < 1:
+        state.error("Cannot get random value with max < 1")
+    state.stack.push(random.randrange(a))
+
+@core("?=")
+def choice(state):
+    a = state.stack.pop(expect=list)
+    if not a:
+        state.error("Choose from empty list")
+    state.stack.push(random.choice(a))
+
+# get random bit
+alias("%?", "2 ?#")
+
+# 2x+1 and (x-1)/2 respectively
+alias("*)", "2 * +1")
+alias("(*", "-- 2 /")
+
+@core("=#")
+def get_array_item(state):
+    a = state.stack.pop(expect=int)
+    b = state.stack.pop(expect=list)
+    a %= len(b)
+    state.stack.push(b[a])
+
+# modulo 2
+alias("2%", "2 %")
+
+@core("+/")
+def sum(state):
+    a = state.stack.pop(expect=list)
+    result = 0
+    for i in a:
+        if not isinstance(i, int):
+            state.error("Array item is not integer")
+        result += a
+    state.stack.push(result)
+
+@core("| |")
+def space(state):
+    state.stack.push(" ")
+@core("|\n|")
+def newline(state):
+    state.stack.push("\n")
+
+@core("=/")
+def split_newlines(state):
+    a = state.stack.pop(expect=str)
+    state.stack.push(a.split("\n"))
+@core("*/")
+def join_newlines(state):
+    a = state.stack.pop(expect=list)
+    if not all(isinstance(i, str) for i in a):
+        state.error("Array item is not string")
+    state.stack.push("\n".join(a))
+@core("/-\\")
+def ignore_top(state):
+    code = state.stack.pop(expect=list)
+    a = state.stack.pop()
+    state.run(code)
+    state.stack.push(a)
+@core(r"/#\'")
+def ignore_top_n(state):
+    n = state.stack.pop(expect=int)
+    code = state.stack.pop(expect=list)
+    top_n = state.stack.pop_many(n)
+    state.run(code)
+# ignore top n, where n is a literal
+alias("/#\\", ",@ ># /#\'")
+
+# with lines of string
+alias("{/}", "// =/ // ~ // */")
+
+@core('"/')
+def fracture(state):
+    a = state.stack.pop(expect=str)
+    state.stack.push(list(a))
+@core('"*')
+def weld(state):
+    a = state.stack.pop(expect=list)
+    if not all(isinstance(i, str) for i in a):
+        state.error("Array item is not string")
+    state.stack.push("".join(a))
+
+# with fractured string
+alias('{"}', '// "/ // ~ // "*')
