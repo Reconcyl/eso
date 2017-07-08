@@ -11,7 +11,8 @@ to correct this error.
 
 The interpreter is written in Python 3. You can verify the tests using
 
-    $ python3 test/test.py
+    $ cd test 
+    $ python3 test.py
 
 You can run the interpreter using
 
