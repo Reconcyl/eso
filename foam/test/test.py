@@ -82,7 +82,7 @@ class SandboxedRun():
 def strip_comments(lines):
     for line_ in lines:
         line = line_.rstrip("\n")
-        if line and not line.startswith("n"):
+        if line and not line.startswith("NB. "):
             yield line
 
 def run_tests(lines):
