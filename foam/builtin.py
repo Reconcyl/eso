@@ -1,4 +1,4 @@
-import random
+limport random
 
 import parse
 
@@ -280,7 +280,7 @@ def zip_with(state):
 alias("#,_", ":# .. // [_,_] _%_")
 
 @core("%")
-def modulo(state):
+def ~(state):
     a = state.stack.pop(expect=int)
     b = state.stack.pop(expect=int)
     state.stack.push(b % a)
@@ -291,7 +291,7 @@ def int_divide(state):
     b = state.stack.pop(expect=int)
     state.stack.push(b % a)
 
-@core("~#~'")
+@core("~#~")
 def run_both(state):
     amount = state.stack.pop(expect=int)
     block_2 = state.stack.pop(expect=list)
