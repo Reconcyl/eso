@@ -131,7 +131,7 @@ The following is a trivial "Hello, World!" program:
     chro "\n"
 
 The following is an extensible version. It outputs data starting at position
-26 in the code, and continuing until a null byte is encountered.
+26 in the code, and continues until a 0 is encountered.
 
 It uses a very hacky trick to do conditional looping in which the cell that
 holds the instruction pointer (-1) is actually executed as code. This trick
