@@ -10,7 +10,7 @@ class InputReader():
             try:
                 line = input()
             except EOFError:
-                return 0
+                return "\0"
             else:
                 self.buffer = iter(itertools.chain(line, "\n"))
                 return next(self.buffer)
@@ -222,8 +222,8 @@ class Preprocessor():
     def strip_comments(self, line):
         # Comments can be put before a line with ".",
         # or after a line with ";".
-        _, _, line = line.rpartition(".")
         line, _, _ = line.partition(";")
+        _, _, line = line.rpartition(".")
         return line
     def process(self):
         lines = self.text.split("\n")
