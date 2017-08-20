@@ -133,28 +133,25 @@ The following is a trivial "Hello, World!" program:
 The following is an extensible version. It outputs data starting at position
 26 in the code, and continues until a 0 is encountered.
 
-It uses a very hacky trick to do conditional looping in which the cell that
-holds the instruction pointer (-1) is actually executed as code. This trick
-is used for the sole purpose of minimizing the program's size.
-
     CODE.
-    ; Output the character pointed to by the counter
-    0.  deref 25 4
+    ; Dereference the string pointer
+    0.  deref 24 4
+    ; End the program if the value pointed to is zero
     3.  deref ? 7
-    6.  chro ?
-    ; Increment the counter
-    8.  deref 25 13
-    11. add 1 ? 25
-    ; Check whether the cell pointed to by the counter is 0
-    15. deref 7 19
-    18. bool ? 23
-    ; Subtract 2 from the boolean value to get either -2 or -1,
-    ; and store the result in the instruction pointer
-    21. add -2 ? -1
-    
+    6.  bool ? 11
+    9.  mul -1 ? 13
+    13. ? ; This will either be `end` or -1, which is a nop.
+    ; Otherwise, output the value
+    14. deref 7 18
+    17. chro ?
+    ; Increment the string pointer
+    19. deref 24 24
+    22. add 1 29 24
+    ; Go back to the beginning
+    26. deref 13 -1
+
     DATA.
-    25. 26
-    26. "Hello, World!\n"
+    29. "Hello, World!\n"
 
 ## Turing Completeness
 
