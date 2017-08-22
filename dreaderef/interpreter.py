@@ -158,6 +158,10 @@ class LineLexer():
                 escaped = False
                 if char == "n":
                     chars.append("\n") # newline escape
+                elif char == "r":
+                    chars.append("\r") # carriage return escape
+                elif char == "t":
+                    chars.append("\t") # tab escape
                 elif char == quote:
                     chars.append(quote) # quote escape
                 elif char == "\\":
