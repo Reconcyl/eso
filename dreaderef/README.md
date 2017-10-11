@@ -12,7 +12,7 @@ In this specification, let `n` represent the literal value `n`, `[n]` represent
 the value of the cell at index `n` on the tape, `[[n]]` represent the value of
 the cell at index `[n]` on the tape, etc.
 
-A Dreaderef program is a list of integers which represents the initial
+A Dreaderef program is a list of integers which represent the initial
 contents of this tape. At the beginning of execution, all the integers
 in the program are written to the tape, starting at index 0 and extending
 to the right. All other locations on the tape are intialized with 0.
@@ -38,22 +38,22 @@ A few things to notice:
   the `?` is used to communicate that the memory cell is "missing" and its
   value will be written later.
 
-- The `add` command takes an argument naming where the result of the addition
-  will be stored. In this case, it stores it at position `5`, which is the
-  argument of `numo`.
+- The `add` command takes a third argument naming where the result of the
+  addition will be stored. In this case, it stores it at position `5`, which
+  is the argument of `numo`.
   
 Here is a reference for all seven commands:
 
-| Name    | Alias | Description
-| ------- | ----- | - |
-| `end`   | `0`   | Stop execution of the program. Not present in the example because the program is padded with `0`s anyways.
-| `deref` | `1`   | Take 2 arguments, `a` and `b`. Store `[a]` (the value pointed to by `a`) in the location `b`.
-| `add`   | `2`   | Take 3 arguments. Add `a` and `b` and store the result in location `c`.
-| `mul`   | `3`   | Take 3 arguments. Store `a * b` in location `c`.
-| `bool`  | `4`   | Take 2 arguments. If `a == 0`, store `0` in location `c`. Otherwise, store `1`.
-| `numo`  | `5`   | Take 1 argument and write it as a number to STDOUT.
-| `chro`  | `6`   | Take 1 argument, convert it to a character using Python's `chr`, and print the result to STDOUT.
-| `chri`  | `7`   | Take 1 argument. Read one character from STDIN, and store the `ord` in STDOUT. Store `0` for EOF.
+| Name    | Number | Description
+| ------- | ------ | - |
+| `end`   | `0`    | Stop execution of the program. Not present in the example because the program is padded with `0`s anyways.
+| `deref` | `1`    | Take 2 arguments, `a` and `b`. Store `[a]` (the value pointed to by `a`) in the location `b`.
+| `add`   | `2`    | Take 3 arguments. Add `a` and `b` and store the result in location `c`.
+| `mul`   | `3`    | Take 3 arguments. Store `a * b` in location `c`.
+| `bool`  | `4`    | Take 2 arguments. If `a == 0`, store `0` in location `c`. Otherwise, store `1`.
+| `numo`  | `5`    | Take 1 argument and write it as a number to STDOUT.
+| `chro`  | `6`    | Take 1 argument, convert it to a character, and print the result to STDOUT.
+| `chri`  | `7`    | Take 1 argument. Read one character from STDIN, convert it to a number, and store it in the given cell.
 
 In Python:
 
