@@ -8,84 +8,102 @@ The execution state of a Dreaderef program consists of a tape of unbounded
 signed integers that extends infinitely to the left and right. Each
 location on the tape has an index, which is represented by an integer.
 
-In this specification, let `n` represent the literal value `n`, `*n` represent
-the value of the cell at index `n` on the tape, `**n` represent the value of
-the cell at index `*n` on the tape, etc.
-
-## Program Structure
+In this specification, let `n` represent the literal value `n`, `[n]` represent
+the value of the cell at index `n` on the tape, `[[n]]` represent the value of
+the cell at index `[n]` on the tape, etc.
 
 A Dreaderef program is a list of integers which represents the initial
 contents of this tape. At the beginning of execution, all the integers
 in the program are written to the tape, starting at index 0 and extending
 to the right. All other locations on the tape are intialized with 0.
 
-## Execution
+To get started, here's an example Dreaderef that computes 1 + 1:
 
-Dreaderef program execution proceeds in ticks. What is executed during
-each tick depends on the value of `**-1` (that is, the cell pointed to
-by the cell at `-1`, which represents the instruction pointer).
+    ; Compute 1 + 1, store in location 5
+    add 1 1 5
+    ; Output as number
+    numo ?
 
-- If `**-1` is 0, then program execution ends.
-- If `**-1` is 1, then the `deref` instruction is executed: the instruction
-  pointer is incremented and then dereferenced twice to read two arguments,
-  `a` and `b`. The cell at location `b` is assigned the value of the
-  cell at location `a`. In other words, `*b = *a`.
-- If `**-1` is 2, the `add` instruction is executed: the IP is incremented
-  and dereferenced three times to read three arguments, `a`, `b`, and
-  `c`. `a` and `b` are added together and the result is stored in location
-  `c`. In other words, `*c = a + b`.
-- If `**-1` is 3, the `mul` instruction is executed: three arguments
-  `a b c` are read. `a` and `b` are multiplied together and the result
-  is stored in `c`: `*c = a * b`.
-- If `**-1` is 4, the `bool` instruction is executed: two arguments
-  `a b` are read. If `a` is nonzero, `1` is stored in location `b`.
-  Otherwise, `0` is stored instead. In other words, `*b = a?1:0`.
-- If `**-1` is 5, the `numo` instruction is executed: one argument
-  is read, and it is printed (in its numeric form) to STDOUT, without
-  any delimiter.
-- If `**-1` is 6, the `chro` instruction is executed: one argument
-  `a` is read, and the Unicode character with code-point `a` is written
-  to STDOUT. If no such character exists, nothing is printed.
-- If `**-1` is 7, the `chri` instruction is executed: one argument `a`
-  is read, and a single character is read from STDIN. The Unicode code-point
-  of this character is taken and the result is stored in `*a`. If end-of-file
-  has been reached, 0 is written instead.
-- Any other instruction is simply ignored.
+A few things to notice:
 
-After the instruction is executed, the value of `*-1` is incremented
-one more time, so that it falls on the next instruction.
+- Dreaderef has a preprocessor that removes comments from the program. It
+  also recognizes `add`, `numo`, and `?` as shortcuts that represent values.
+  The same program could have been written like this:
+  
+      2 1 1 5 5 0
+
+- Most commands in Dreaderef only take literal arguments. This means that
+  if you want the result of a computation to affect other commands, you
+  have to use self-modification to splice it into their arguments. In fact,
+  the `?` is used to communicate that the memory cell is "missing" and its
+  value will be written later.
+
+- The `add` command takes an argument naming where the result of the addition
+  will be stored. In this case, it stores it at position `5`, which is the
+  argument of `numo`.
+  
+Here is a reference for all seven commands:
+
+| Name    | Alias | Description
+| ------- | ----- | - |
+| `end`   | `0`   | Stop execution of the program. Not present in the example because the program is padded with `0`s anyways.
+| `deref` | `1`   | Take 2 arguments, `a` and `b`. Store `[a]` (the value pointed to by `a`) in the location `b`.
+| `add`   | `2`   | Take 3 arguments. Add `a` and `b` and store the result in location `c`.
+| `mul`   | `3`   | Take 3 arguments. Store `a * b` in location `c`.
+| `bool`  | `4`   | Take 2 arguments. If `a == 0`, store `0` in location `c`. Otherwise, store `1`.
+| `numo`  | `5`   | Take 1 argument and write it as a number to STDOUT.
+| `chro`  | `6`   | Take 1 argument, convert it to a character using Python's `chr`, and print the result to STDOUT.
+| `chri`  | `7`   | Take 1 argument. Read one character from STDIN, and store the `ord` in STDOUT. Store `0` for EOF.
+
+In Python:
+
+    end:        halt()
+    deref a b:  mem[b] = mem[a]
+    add a b c:  mem[c] = a + b
+    mul a b c:  mem[c] = a * b
+    bool a b:   mem[b] = 1 if a else 0
+    numo a:     print(a, end="")
+    chro a:     print(chr(a), end="")
+    chri a:     mem[a] = ord(getchar())
+
+Dreaderef doesn't have a `numi` instruction, but the preprocessor will
+replace `*` with an integer from the command-line arguments.
+
+## Control Flow
+
+Position `-1` represents Dreaderef's instruction pointer. It can be written
+to and read from like any cell, but it is automatically incremented after
+every command, and writing to it causes a jump.
+
+A few things to note:
+
+- Instructions with arguments take up multiple spaces. Each argument occupies
+  its own cell.
+- By the time a `deref` instruction executes the derefence, the instruction
+  pointer is already pointing past it. So the following program:
+  
+      deref -1 4
+      numo ?
+
+  prints `3`.
+
+If Dreaderef encounters an unrecognized instruction, it will ignore it.
 
 ## The Preprocessor
 
-The reference interpreter for Dreaderef has a preprocessor to make creating
-programs slightly easier.
+Dreaderef's preprocessor knows how to do the following things:
 
-Here is an example Dreaderef file that demonstrates some of the preprocessor's
-features:
-
-    ; Everything after the first ";" on a line is ignored.
-    As is everything before the last ".".
-    ; However, semicolons take priority. So this sentence is still commented
-    
-    0. chro "H"
-    2. chro "a"
-    4. chro "i"
-    6. end
-    7. "hmm..." 719 ; This will never be executed.
-    
-After being fed through the preprocessor, the result is:
-
-    6 72 6 97 6 105 0 104 109 109 46 46 46 719
-
-The preprocessor also provides two special values, `?` and `*`.
-
-- `?` is intended to signal that a location will not be used until it
-  is modified later. Accessing a value that was initialized with `?`
-  is undefined behavior (although the reference implementation just
-  replaces it with a `0`).
-- `*` will be replaced with an integer from the command-line arguments.
-  It is intended to help write programs that take integer input (since
-  there is no `numi` instruction).
+- Remove all text after a `;` on a line.
+- Remove all text before a `.` on a line (`;` takes precedence). This is
+  intended to allow lines to be numbered.
+- Strip unnecessary whitespace.
+- Handle `?`, representing a cell whose value is not known statically. Reading
+  from such a cell before it has been written is implementation-defined behavior.
+  The provided interpreter treats it as `0`.
+- Handle `*`, which is replaced with an integer read from the command-line arguments.
+- Expand string literals. String literals are delimited by `"` and cannot be continued
+  onto multiple lines. The shortcuts `\\`, `\"`, `\n`, `\t`, and `\r` are supported
+  in string literals.
 
 ## Using the Interpreter
 
@@ -94,8 +112,7 @@ line as:
 
     $ python3 interpreter.py code.dref [args for the preprocessor]
 
-You can also `import` it and use it as a module from Python code. The
-code contains two classes, `Preprocessor` and `Interpreter`.
+The interpreter also exports two classes, `Preprocessor` and `Interpreter`:
 
     Preprocessor(error_callback_function, text, arguments)
         .process() # returns a list of numbers
