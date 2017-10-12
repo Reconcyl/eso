@@ -42,7 +42,7 @@ A few things to notice:
   addition will be stored. In this case, it stores it at position `5`, which
   is the argument of `numo`.
   
-Here is a reference for all seven commands:
+Here is a reference for all eight commands:
 
 | Name    | Number | Description
 | ------- | ------ | - |
