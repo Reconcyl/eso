@@ -187,7 +187,3 @@ This leaves the language with three instructions: `end`, `deref`, and
 `add`. Of these, `end` might be removable by changing the language such
 that if the instruction pointer ever points to a negative value, execution
 terminates.
-
-It is possible that even `add` could be removed, leaving the language
-with `deref` as the only instruction. However, doing this would be beyond
-my understanding.
