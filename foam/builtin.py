@@ -1,4 +1,4 @@
-limport random
+import random
 
 import parse
 
