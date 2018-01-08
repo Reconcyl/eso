@@ -1,4 +1,4 @@
-limport random
+import random
 
 import parse
 
@@ -395,7 +395,7 @@ def ignore_top(state):
     a = state.stack.pop()
     state.run(code)
     state.stack.push(a)
-@core(r"/#\'")
+@core(r"/#\\'")
 def ignore_top_n(state):
     n = state.stack.pop(expect=int)
     code = state.stack.pop(expect=list)
