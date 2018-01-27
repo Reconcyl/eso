@@ -1,5 +1,3 @@
-module Momema where
-
 import System.Environment (getArgs, getProgName)
 import System.IO (stderr, hPutStr, hPutStrLn)
 
