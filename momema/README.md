@@ -72,9 +72,10 @@ command-line arguments:
     given names by appending one or more uppercase letters; if the program attempts to evaluate a
     hole sharing a name with one already evaluated, the value given by the user will be re-used.
   - *Breakpoints*. A `|` instruction is added, which temporarily suspends execution and puts the
-    user into a console where they can enter commands. The user can exit the console and resume
-    execution by typing `:quit`. The user will also be sent into the interactive console at the end
-    of execution.
-  - If no program file is given, the interactive console will be launched automatically.
+    user into a console where they can enter code to be executed and expressions to be evaluated.
+    The user can exit the console and resume execution by typing `:quit`, or revert any edits made
+    in the console by typing `:revert`. The user will also be sent into the interactive console at
+    the end of execution.
+- If no program file is given, the interactive console will be launched automatically.
 
 You can find example Momema programs in the `examples/` directory.

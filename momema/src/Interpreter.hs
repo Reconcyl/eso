@@ -15,7 +15,7 @@ import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 
 -- All interpreter-generated output (debug prompts, etc.) is sent to STDERR.
-import System.IO (stderr, hPutStr, hPutStrLn)
+import System.IO (stdout, stderr, hPutStr, hPutStrLn, hFlush, isEOF)
 
 -- Various utility functions.
 import Data.List (sortOn, intercalate, elemIndex, findIndices)
@@ -75,23 +75,32 @@ tryRead string = case reads string of
     [(result, "")] -> Just result
     _ -> Nothing
 
--- A safe verstion of toEnum that returns a Maybe instead of raising an exception, courtesy of
--- https://stackoverflow.com/questions/2743858/safe-and-polymorphic-toenum
-tryToEnum :: Enum a => Int -> Maybe a
-tryToEnum i
-    | a <= i, i <= z = Just $ toEnum i
-    | otherwise = Nothing
-    where
-        a = fromEnum $ minBound `asTypeOf` i
-        z = fromEnum $ maxBound `asTypeOf` i
+ePutStr :: String -> IO ()
+ePutStr = hPutStr stderr
+ePutStrLn :: String -> IO ()
+ePutStrLn = hPutStrLn stderr
+
+-- Try to turn a character code into a character.
+chr :: Integer -> Maybe Char
+chr c
+    | c > maxChar = Nothing
+    | c < minChar = Nothing
+    | otherwise   = Just (toEnum c')
+    where maxChar = toInteger $ fromEnum (maxBound :: Char)
+          minChar = toInteger $ fromEnum (minBound :: Char)
+          c' :: Int
+          c' = fromInteger c
 
 -- Return the character code of a character read from STDIN.
 getCharCode :: IO Integer
-getCharCode = toInteger . fromEnum <$> getChar
+getCharCode = do
+    eof <- isEOF
+    if eof then return (-1)
+    else toInteger . fromEnum <$> getChar
 
 -- Print a prompt to STDERR and return a line read from STDIN.
 stderrPrompt :: String -> IO String
-stderrPrompt prompt = hPutStr stderr prompt >> getLine
+stderrPrompt prompt = ePutStr prompt >> getLine
 
 -- Keep running a `getInput` action until the validate function returns a Just.
 readUntil :: (a -> Maybe b) -> IO a -> IO b
@@ -107,8 +116,8 @@ getDecimalInteger = readUntil tryRead getLine
 
 -- Retrieve the value of an integer on the tape.
 deref :: Integer -> Momema Integer
-deref (-9) = lift getCharCode
-deref (-8) = lift getDecimalInteger
+deref (-9) = lift $ hFlush stdout >> getCharCode
+deref (-8) = lift $ hFlush stdout >> getDecimalInteger
 deref index = do
     state <- State.get
     case Map.lookup index $ getTape state of
@@ -146,14 +155,14 @@ displayTape tape = "[" ++ intercalate " .. " (map displayRun runs) ++ "]"
 debug :: Momema ()
 debug = do
     state <- State.get
-    lift . hPutStrLn stderr $ "at position " ++ show (getIp state)
-    lift . hPutStrLn stderr . displayTape $ getTape state
+    lift . ePutStrLn $ "at position " ++ show (getIp state)
+    lift . ePutStrLn . displayTape $ getTape state
 
 -- Write debug information and the argument to STDERR, then return it.
 debugArg :: Integer -> Momema Integer
 debugArg a = do
     debug
-    lift . hPutStrLn stderr $ "argument: " ++ show a
+    lift . ePutStrLn $ "argument: " ++ show a
     return a
 
 getAnonymousHole :: IO Integer
@@ -223,22 +232,25 @@ console = do
             line <- lift $ stderrPrompt "> "
             case line of
                 ":quit" -> return False
+                ":q" -> return False
                 ":revert" -> do
                     State.put initState
-                    return False
+                    return True
                 ':':command -> do
-                    lift . hPutStrLn stderr $ "command `:" ++ command ++ "` not recognized"
+                    lift . ePutStrLn $ "command `:" ++ command ++ "` not recognized"
                     return True
                 code -> do
                     case parse Parse.InteractiveMode code of
-                        Left err -> lift $ hPutStrLn stderr err
+                        Left err -> lift $ ePutStrLn err
                         Right program -> do
                             initState <- genInitState program
                             endState <- lift $ runMomema initState
+                            lift $ hFlush stdout
                             State.put endState
                             if didModifyTape endState then
-                                lift . hPutStrLn stderr . displayTape $ getTape endState
-                            else return ()
+                                lift . ePutStrLn . displayTape $ getTape endState
+                            else
+                                return ()
                     return True
     where
         genInitState :: Program -> Momema MomemaState
@@ -254,7 +266,7 @@ console = do
             }
 
 assign :: Integer -> Integer -> Momema ()
-assign (-9) char = lift . putStr . maybeToList . tryToEnum $ fromInteger char
+assign (-9) charCode = lift . putStr . maybeToList $ chr charCode
 assign (-8) num = lift . putStr $ show num
 assign dest src = do
     state <- State.get
@@ -269,11 +281,12 @@ evalInstruction i = case i of
         assign a' b'
     DebugTape -> debug
     Breakpoint -> do
-        lift $ hPutStrLn stderr "breakpoint"
+        lift $ hFlush stdout
+        lift $ ePutStrLn "breakpoint"
         console
     DebugPrintExpr a -> do
         a' <- evalExpression a
-        lift . hPutStrLn stderr $ show a'
+        lift . ePutStrLn $ show a'
 
 tick :: Momema Bool
 tick = do
@@ -285,7 +298,7 @@ tick = do
         Just i -> do
             evalInstruction i
             state <- State.get
-            State.put state { getIp = ip + 1 }
+            State.put state { getIp = getIp state + 1 }
             return True
 
 runMomema :: MomemaState -> IO MomemaState
@@ -307,6 +320,8 @@ runProgram prog = do
 runConsole :: Program -> IO ()
 runConsole prog = do
     finalState <- runMomema $ startState prog
+    hFlush stdout
+    ePutStrLn . displayTape $ getTape finalState
     State.execStateT console finalState
     return ()
 
