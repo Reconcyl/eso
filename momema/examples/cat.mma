@@ -1,0 +1,8 @@
+# A cat program.
+
+z    1      # label 0: jump past label 1.
+-9   *0     # print the character that was read.
+z    0      # label 1: do nothing.
+0    *-9    # read a character.
+z    =+1*0  # if the character was -1, do nothing (and end the program).
+            # otherwise, jump past label 0.
