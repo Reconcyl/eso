@@ -8,6 +8,8 @@ Each Betaload environment can be in one of two modes: S-mode or E-mode. The envi
 
 Betaload was intended to be a more useful version of Underload, in that you *could* maybe write actual useful programs if you tried hard enough.
 
+You can find more information about the language on the [Esolangs page](https://esolangs.org/wiki/Betaload).
+
 ## Example Programs:
 
 All Underload programs will work with Betaload.
