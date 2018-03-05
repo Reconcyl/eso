@@ -8,11 +8,7 @@ The execution state of a Dreaderef program consists of a tape of unbounded
 signed integers that extends infinitely to the left and right. Each
 location on the tape has an index, which is represented by an integer.
 
-In this specification, let `n` represent the literal value `n`, `[n]` represent
-the value of the cell at index `n` on the tape, `[[n]]` represent the value of
-the cell at index `[n]` on the tape, etc.
-
-A Dreaderef program is a list of integers which represent the initial
+A Dreaderef program is a list of integers which represents the initial
 contents of this tape. At the beginning of execution, all the integers
 in the program are written to the tape, starting at index 0 and extending
 to the right. All other locations on the tape are intialized with 0.
@@ -24,7 +20,7 @@ To get started, here's an example Dreaderef that computes 1 + 1:
     ; Output as number
     numo ?
 
-A few things to notice:
+A few things to note:
 
 - Dreaderef has a preprocessor that removes comments from the program. It
   also recognizes `add`, `numo`, and `?` as shortcuts that represent values.
@@ -32,22 +28,22 @@ A few things to notice:
   
       2 1 1 5 5 0
 
-- Most commands in Dreaderef only take literal arguments. This means that
-  if you want the result of a computation to affect other commands, you
-  have to use self-modification to splice it into their arguments. In fact,
-  the `?` is used to communicate that the memory cell is "missing" and its
-  value will be written later.
+- Most commands in Dreaderef only take literal arguments (i.e. it has only a
+  direct addressing mode). This means that if you want the result of a
+  computation to affect other commands, you have to use self-modification to
+  splice it into their arguments. In fact, the `?` is used to communicate that
+  the memory cell is "missing" and its value will be written later.
 
 - The `add` command takes a third argument naming where the result of the
   addition will be stored. In this case, it stores it at position `5`, which
   is the argument of `numo`.
   
-Here is a reference for all eight commands:
+There are 8 different commands available in Dreaderef:
 
 | Name    | Number | Description
 | ------- | ------ | - |
 | `end`   | `0`    | Stop execution of the program. Not present in the example because the program is padded with `0`s anyways.
-| `deref` | `1`    | Take 2 arguments, `a` and `b`. Store `[a]` (the value pointed to by `a`) in the location `b`.
+| `deref` | `1`    | Take 2 arguments, `a` and `b`. Copy the value of location `a` to location `b`.
 | `add`   | `2`    | Take 3 arguments. Add `a` and `b` and store the result in location `c`.
 | `mul`   | `3`    | Take 3 arguments. Store `a * b` in location `c`.
 | `bool`  | `4`    | Take 2 arguments. If `a == 0`, store `0` in location `c`. Otherwise, store `1`.
@@ -72,10 +68,10 @@ replace `*` with an integer from the command-line arguments.
 ## Control Flow
 
 Position `-1` represents Dreaderef's instruction pointer. It can be written
-to and read from like any cell, but it is automatically incremented after
-every command, and writing to it causes a jump.
+to and read from like any cell, but it is automatically increased after every
+command, and writing to it causes a jump.
 
-A few things to note:
+There are a few things to keep in mind:
 
 - Instructions with arguments take up multiple spaces. Each argument occupies
   its own cell.
@@ -126,7 +122,7 @@ While I welcome suggestions for the language, I intend to keep Dreaderef
 as minimalistic as possible, so it is possible they will not be accepted.
 
 However, if you become aware of any bugs, especially in the preprocessor,
-please notify me so that I can fix them.
+do not hesitate to let me know.
 
 ## Example Programs
 
@@ -148,27 +144,23 @@ The following is a trivial "Hello, World!" program:
     chro "\n"
 
 The following is an extensible version. It outputs data starting at position
-26 in the code, and continues until a 0 is encountered.
+29 in the code, and continues until a 0 is encountered.
 
     CODE.
     ; Dereference the string pointer
-    0.  deref 24 4
+    0.  deref 16 4
     ; End the program if the value pointed to is zero
     3.  deref ? 7
-    6.  bool ? 11
-    9.  mul -1 ? 13
-    13. ? ; This will either be `end` or -1, which is a nop.
-    ; Otherwise, output the value
-    14. deref 7 18
-    17. chro ?
+    6.  bool ? 9
+    9.  ? 7 13 ; Black magic
+    12. chro ?
     ; Increment the string pointer
-    19. deref 24 24
-    22. add 1 29 24
+    14. add 1 21 16
     ; Go back to the beginning
-    26. deref 13 -1
-
+    18. deref 100 -1
+    
     DATA.
-    29. "Hello, World!\n"
+    21. "Hello, World!\n"
 
 ## Turing Completeness
 
@@ -180,10 +172,11 @@ could trivially be removed, leaving the language with 5 instructions.
 Of those, `bool` and `mul` seem the most eliminable. If this was done,
 there would be no good way to check whether a cell was zero unless it
 was known to be one of a finite set of values, meaning that any portion
-of the tape used for data processing would essentially act like that of
-a Turing machine, in which only a fixed alphabet of symbols could be encountered.
+of the tape used for storing unbounded data processing would essentially act
+like that of a Turing machine, in which only a fixed alphabet of symbols could
+be encountered.
 
 This leaves the language with three instructions: `end`, `deref`, and
-`add`. Of these, `end` might be removable by changing the language such
+`add`. Of these, `end` would be removable by changing the language such
 that if the instruction pointer ever points to a negative value, execution
 terminates.
