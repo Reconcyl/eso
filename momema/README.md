@@ -37,9 +37,9 @@ A few things to note:
 
 - A `0` in front of a string of digits is parsed separately. For example, `010 003` parses as five
   tokens: `0`, `10`, `0`, `0`, and `3`.
-- Spaces, tabs, and linefeeds may be used in the program and are ignored (except that they force a
-  numeric literal or label to end). `#` can be used to begin a single-line comment, and `/` a
-  multi-line comment.
+- Spaces, tabs, linefeeds, and parentheses may be used in the program and are ignored (except that
+  they force a numeric literal or label to end). `#` can be used to begin a single-line comment,
+  and `/` a multi-line comment.
 
 ## IO
 
