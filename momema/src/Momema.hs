@@ -17,6 +17,7 @@ main = do
         ["-i", fileName] -> runFile Interpreter.runConsole Parse.InteractiveMode fileName
         [] -> do
             errLn "Momema: console"
+            errLn "use `--help` for help."
             Interpreter.interactiveConsole
         args -> do
             errLn $ "Momema: arguments " ++ unwords args ++ " not recognized"
