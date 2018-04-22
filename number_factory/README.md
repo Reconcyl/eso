@@ -58,4 +58,4 @@ unmatched parentheses) if the brainfuck program contains unmatched loops.
 
 The converter should take the brainfuck program's filename as an argument. If
 no argument is provided, it will be taken from STDIN instead. You can also pass
-`-c code` to directly from `code` rather than taking a filename.
+`-c code` to convert directly from `code` rather than taking a filename.
