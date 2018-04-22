@@ -308,8 +308,8 @@ def run_from_file(filename):
         source = f.read()
     run_from_string(source, State())
 
-help_msg = """Number Factory (NF) interpreter: too many arguments passed
-(expected 0 or 1)
+help_msg = """Number Factory (NF) interpreter: too many arguments passed \
+(expected 0 or 1).
 Usage:
   {0} <file.nf> - runs the file
   {0}           - starts an interactive console"""
@@ -320,15 +320,15 @@ def usage():
 
 def console():
     state = State()
-    while True:
-        line = input()
+    for line in sys.stdin:
         if line == "exit":
             print("Bye.")
             return
         try:
-            run_from_string(line, State)
+            run_from_string(line, state)
         except ParseError:
             print("No parse", file=sys.stderr)
+    sys.exit()
 
 def main():
     if len(sys.argv) == 1:
