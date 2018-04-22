@@ -1,7 +1,7 @@
 # Number Factory
 
-A Python implementation of the esoteric programming language [Number Factory]
-(https://esolangs.org/wiki/Number_Factory).
+A Python implementation of the esoteric programming language
+[Number Factory](https://esolangs.org/wiki/Number_Factory).
 
 I have attempted to be as close to spec-compliant as possible, though I made a
 few assumptions:
