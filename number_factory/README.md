@@ -55,3 +55,7 @@ numeric-IO [brainfuck](https://esolangs.org/wiki/brainfuck) programs into
 Number Factory, thus demonstrating the Turing-completeness of the latter. Note
 that it will generate invalid Number Factory programs (i.e. those with
 unmatched parentheses) if the brainfuck program contains unmatched loops.
+
+The converter should take the brainfuck program's filename as an argument. If
+no argument is provided, it will be taken from STDIN instead. You can also pass
+`-c code` to directly from `code` rather than taking a filename.

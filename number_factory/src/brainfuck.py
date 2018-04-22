@@ -4,28 +4,28 @@ Number Factory."""
 import sys
 
 # Snippet to be placed at the start of the program.
-START_SNIPPET = "V<<%>V%"
+START_SNIPPET = "V<<%>V"
 
-INC_SNIPPET = "%V<%>^^%VV<%%>^%"
-DEC_SNIPPET = "%<%>^%V<%%>%"
+INC_SNIPPET = "V<%>^^%VV<%%>^"
+DEC_SNIPPET = "<%>^%V<%%>"
 
 # Causes the robot to pick up 0 if it has nothing, assuming that it
 # is on S. This works by having it attempt to place its content in -
 # and then placing 0 in -, then immediately taking from - again.
 OR_ZERO = "<%^%V%%>"
 
-LEFT_SNIPPET = "%>%<%" + OR_ZERO + "%"
-RIGHT_SNIPPET = ">%<" + OR_ZERO + "%"
+LEFT_SNIPPET = ">%<%" + OR_ZERO
+RIGHT_SNIPPET = "%>%<" + OR_ZERO
 
-# Takes the top of S and puts it in a material line to get rid of it.
-# Then pushes a value from %
-INPUT_SNIPPET = "%^%<<%>>V%"
-# Puts the top of S in the copier. Sends one copy to the shipping
+# Puts the held value in a material line to get rid of it. Then take
+# a number from input.
+INPUT_SNIPPET = "^%<<%>>V"
+# Puts the current cell in the copier. Sends one copy to the shipping
 # dock and puts the other back on the stack.
-OUTPUT_SNIPPET = "%V%%^%V>%^>>%>>"
+OUTPUT_SNIPPET = "V%>%>>^%V>>%^"
 
-# Puts a copy of the top of S into X.
-LOOP_TEST_SNIPPET = "%V%%^%V>%V%<^^"
+# Puts a copy of the current cell into X.
+LOOP_TEST_SNIPPET = "V%>%V%^<%^"
 
 OPEN_LOOP = LOOP_TEST_SNIPPET + "("
 CLOSE_LOOP = LOOP_TEST_SNIPPET + ")"
