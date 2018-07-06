@@ -25,5 +25,18 @@ The interpreter also supports using `-i` to specify an input file:
 You can also use `-t` to enable tail-call optimization. However, this
 may break self-modifying programs.
 
-You can find more information about the language on the wiki. (Note
-that it is currently under development.)
+A list of builtins is available in `builtins.md`.
+
+## Contributing
+
+I plan to write a basic language description soon. If anyone is able
+to understand the source code and would like to add more builtins,
+this is the process to do it:
+
+- Add it to `builtin.py`. If the builtin can be bootstrapped in Foam,
+  use `alias(name, code)` to declare it. If the builtin needs to be
+  written in Python, use the `@core(name)` decorator.
+- Add documentation for it by updating `builtins_raw.txt` with the
+  builtin's name, description, usage string, and an example or two.
+- Run `gen_doc.py`, which parses `builtins_raw.txt` and generates
+  Markdown in `builtins.md`
