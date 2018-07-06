@@ -39,4 +39,4 @@ this is the process to do it:
 - Add documentation for it by updating `builtins_raw.txt` with the
   builtin's name, description, usage string, and an example or two.
 - Run `gen_doc.py`, which parses `builtins_raw.txt` and generates
-  Markdown in `builtins.md`
+  Markdown in `builtins.md`.
