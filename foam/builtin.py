@@ -93,7 +93,7 @@ def output_str(state):
     state.output(a)
 
 alias(".", '` ."')
-alias(".#", '>" .')
+alias(".#", '>" ."')
 alias("<", '." \'|\n| ."')
 alias(".'", ',@ ."')
 alias("<'", ",@ <")
