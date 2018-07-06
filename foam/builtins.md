@@ -1,0 +1,5 @@
+# Builtins
+
+## `+`
+
+Adds two numbers.

@@ -280,7 +280,7 @@ def zip_with(state):
 alias("#,_", ":# .. // [_,_] _%_")
 
 @core("%")
-def ~(state):
+def modulo(state):
     a = state.stack.pop(expect=int)
     b = state.stack.pop(expect=int)
     state.stack.push(b % a)
