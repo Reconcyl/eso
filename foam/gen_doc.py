@@ -32,7 +32,7 @@ def markdown_code(string):
     if string.startswith("`"):
         string = " " + string
     if string.endswith("`"):
-        string = " " + string
+        string = string + " "
     max_backticks = longest_run(string, "`")
     return wrap(string, "`" * (max_backticks + 1))
 
@@ -152,7 +152,8 @@ def main():
     entries = list(get_entries(content.split("\n")))
     entries.sort(key=lambda entry: entry.name)
     with open("builtins.md", "w") as f:
-        f.write("# Builtins")
+        f.write("# Foam Builtins\n\n")
+        f.write("This file lists most builtins currently available in Foam, as well as what they do.")
         for entry in entries:
             f.write("\n\n")
             f.write(entry.to_markdown())

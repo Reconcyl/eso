@@ -1,0 +1,256 @@
++
+| Add two numbers.
+a: integer, b: integer -> a + b
+  1 2 +
+> 3
+
+++
+| Concatenate two blocks.
+a: block, b: block -> a ++ b
+  [a b] [c d] ++
+> [a b c d]
+
+{_}
+| Pop an element and wrap it in a singleton block.
+any -> [a]
+  ' Hello {_}
+> [Hello]
+
+_}
+| Append an element to a list.
+a: block, b -> a ++ [b]
+  [1 2 3 4] 10 _}
+> [1 2 3 4 10]
+
+{_
+| Prepend an element to a list.
+a, b: block -> [a] ++ b
+  1 [2 3 4] {_
+> [1 2 3 4]
+
+//
+| Swap the top two elements on the stack.
+a, b -> b, a
+  1 ' Hello //
+> Hello, 1
+
+{_'
+| Like `{_`, but take arguments in the opposite order.
+a: block, b -> [b] ++ a
+  [2 3 4] 1 {_'
+> [1 2 3 4]
+
+@
+| Reverse the order of the first 3 stack items.
+a, b, c -> c, b, a
+  1 ' Hello [a b c] @
+> [a b c], Hello, 1
+
+{#}
+| Pop `N` and turn the first `N` stack items into a block.
+...s, a: integer -> ...s[:a], s[a:]
+  ' a ' b ' c ' d 'e # 4 {#}
+> a, [b c d e]
+
+~
+| Execute  the given block in a new call frame.
+a: block -> call_stack.add_frame(a)
+  1 2 [+] ~
+> 3
+
+~*
+| Execute the given block in the current call frame.
+a: block -> call_stack.frames[0].extend_front(a)
+  1 2 ['] ~* +
+> 1, 2, +
+
+,@
+| Pop an element from the caller's call frame.
+ -> call_stack.frames[1].pop(0)
+  1 2 [,@] ~ +
+> 1, 2, +
+
+'
+| Pop an element from the current call frame.
+ -> call_stack.frames[1].pop(0)
+  ' Hello
+> Hello
+
+."
+| Pop a string and output it.
+a: string -> output(a)
+  ' |Hello, World!| ."
+> output: Hello, World!
+
+.
+| Pop a list or string and output the uneval'ed form.
+a: string -> output(uneval(a))
+  ' |Hi there| .
+> output: |Hi there|
+  [|foo bar| baz] .
+> output: [|foo bar| baz]
+
+.#
+| Pop a number and output its decimal representation.
+a: number -> output(a)
+  10 10 + .#
+> output: 20
+
+<
+| Output a string with a trailing newline.
+a: string -> output(a + '\n')
+  ' a <
+> output: a\n
+
+.'
+| Pop a string from the current call frame and output it.
+ -> output(call_stack.frames[0].pop(0))
+  .' foo
+> output: foo
+
+<'
+| Pop a string from the current call frame and output it,
+| with a trailing newline.
+ -> output(call_stack.frames[0].pop(0) + '\n')
+  .' Hello!
+> output: Hello!\n
+
+.@
+| Pop an element from the stack and add it to the caller's frame.
+a -> call_stack.frames[1].prepend(a)
+  10 ' foo [' < .@] ~ .#
+> output: foo\n10
+
+.@*
+| Pop a block from the stack and dump its contents into the caller's frame.
+a: block -> call_stack.frames[1].extend_front(a)
+  10 [[1 +] .@*] ~ .#
+> output: 11
+
+>#
+| Pop a string and attempt to parse it as a number.
+| Error if it cannot be parsed.
+a: string -> int(a)
+  ' 5 >#
+> 5
+
+#
+| Pop a string from the current call frame and attempt to parse it as a number.
+| Error if it cannot be parsed.
+ -> int(call_stack.frames[0].pop(0))
+  # 99 # 4 +
+> 103
+  # -5 # 5 +
+> 0
+
+0
+| Push 0 to the stack. Alias for `# 0`.
+ -> 0
+  0 # 3 +
+> 2
+
+1
+| Push 1 to the stack. Alias for `# 1`.
+ -> 1
+  1 10 +
+> 11
+
+2
+| Push 2 to the stack. Alias for `# 2`.
+ -> 2
+  1 2 + 2 +
+> 5
+
+-1
+| Push -1 to the stack. Alias for `# -1`.
+ -> -1
+  1 -1 +
+> 0
+
+10
+| Push 10 to the stack. Alias for `# 10`.
+ -> 10
+  10 10 +
+> 20
+
+#8
+| Push 256 to the stack. Alias for `# 256`.
+ -> 256
+  #8 10 +
+> 276
+
+e2
+| Push 100 to the stack. Alias for `# 100`.
+ -> 100
+  e2 : +
+> 200
+
+e3
+| Push 1000 to the stack. Alias for `# 1000`.
+ -> 1000
+  e3 e2 -
+> 900
+
+>"
+| Pop an integer and push its string representation.
+a: number -> str(a)
+  # 3 # 4 >" . >" .
+> 43
+
+=.
+| Pop a string and a block. Redefine the command with the string as its name
+| to execute the block.
+a: block, b: string -> commands[string] = block
+  [+] ' - =. 10 2 -
+> 12
+
+,
+| Read a character from STDIN and push it as a string.
+ -> stdin.get_char()
+  , ."
+> output: first character of input
+
+,*
+| Read the entirety of input from STDIN and push it as a string.
+ -> stdin.read()
+  ,* ."
+> cat program
+
+,@*
+| Push the entirety of the callee's call frame.
+ -> call_stack.frames[1].copy()
+  [,@* ~] ~ 2 : + .#
+> output: 44
+
+,@*'
+| Push the entirety of the current call frame.
+ -> call_stack.frames[0].copy()
+  ,@*' : ++ .
+> output: [: ++ . : ++ .]
+
+;#
+| Read an integer from STDIN.
+ -> stdin.get_integer()
+  ;# : +
+> output: input * 2
+
+`
+| Pop an element and generate a string representation.
+a: string -> uneval(a)
+  [a |b c|] `
+> |[a \|b c\|]|
+
+`*
+| Pop an element and push a block that, when evaluated,
+| will push that element.
+a -> blockify(a)
+  # 3 >" `*
+> [' 3]
+
+->
+| Pop an element from the stack and a name from the current call
+| frame, then redefine the operation with that name to push the
+| element.
+a -> commands[call_stack.frames[0].pop()] = blockify(a)
+  1 -> a  10 -> b  b a -
+> 9
