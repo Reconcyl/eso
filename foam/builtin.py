@@ -24,6 +24,42 @@ def alias(name, operation):
     # incentive to fix it as quickly as possible.
     bootstrapped[name] = parse.parse(object(), operation)
 
+class Number:
+    def parse(state, x):
+        if isinstance(x, list):
+            return len(x)
+        elif isinstance(x, str):
+            try:
+                return int(x)
+            except ValueError:
+                state.error("Could not parse {:r} as integer".foramt(x))
+        elif isinstance(x, int):
+            return x
+        else:
+            state.error("Could not cast {} to number.".format(type(x).__name__))
+
+class String:
+    def parse(state, x):
+        if isinstance(x, list):
+            return "".join(String.parse(i) for i in list)
+        elif isinstance(x, str):
+            return x
+        elif isinstance(x, int):
+            return str(x)
+        else:
+            state.error("Could not cast {} to string.".format(type(x).__name__))
+
+class Block:
+    def parse(state, x):
+        if isinstance(x, list):
+            return x
+        elif isinstance(x, str):
+            return list(x)
+        elif isinstance(x, int):
+            return list(range(x))
+        else:
+            state.error("Could not cast {} to block.".format(type(x).__name__))
+
 @core("+")
 def add(state):
     a = state.stack.pop(expect=int)
