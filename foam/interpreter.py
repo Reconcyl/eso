@@ -9,13 +9,13 @@ class FoamStack():
         self.stack = []
     def push(self, item):
         self.stack.append(item)
-    def pop(self, expect=object):
+    def pop(self, coerce=None):
+        if coerce is None:
+            coerce = lambda _, x: x
         if not self.stack:
             self.state.error("Popped from empty stack")
         item = self.stack.pop()
-        if not isinstance(item, expect):
-            self.state.error("Expected type {}, got {}".format(expect.__name__, type(item).__name__))
-        return item
+        return coerce(self, item)
     def push_many(self, items):
         self.stack.extend(items)
     def pop_many(self, n):

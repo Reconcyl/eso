@@ -62,20 +62,20 @@ class Block:
 
 @core("+")
 def add(state):
-    a = state.stack.pop(expect=int)
-    b = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
+    b = state.stack.pop(coerce=Number.parse)
     state.stack.push(a + b)
 
 @core("*")
 def multiply(state):
-    a = state.stack.pop(expect=int)
-    b = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
+    b = state.stack.pop(coerce=Number.parse)
     state.stack.push(a * b)
 
 @core("++")
 def concat(state):
-    a = state.stack.pop(expect=list)
-    b = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
+    b = state.stack.pop(coerce=Block.parse)
     state.stack.push(b + a)
 
 @core("{_}")
@@ -112,12 +112,12 @@ def wrap_n(state):
 
 @core("~")
 def run(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     state.add_frame(a)
 
 @core("~*")
 def run_inline(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     state.extend_frame(0, a)
     
 @core(",@")
@@ -129,7 +129,7 @@ alias("'", ",@")
 
 @core('."')
 def output_str(state):
-    a = state.stack.pop(expect=str)
+    a = state.stack.pop(coerce=String.parse)
     state.output(a)
 
 alias(".", '` ."')
@@ -146,12 +146,12 @@ def write_self(state):
 
 @core(".@*")
 def write_self_list(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     state.extend_frame(1, a)
     
 @core(">#")
 def to_num(state):
-    a = state.stack.pop(expect=str)
+    a = state.stack.pop(coerce=String.parse)
     try:
         a = int(a)
     except ValueError:
@@ -171,13 +171,13 @@ alias("e3", "# 1000")
 
 @core('>"')
 def to_str(state):
-    a = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
     state.stack.push(str(a))
 
 @core("=.")
 def define_op(state):
-    a = state.stack.pop(expect=str)
-    b = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=String.parse)
+    b = state.stack.pop(coerce=Block.parse)
     bootstrapped[a] = b
 
 @core(",")
@@ -236,17 +236,17 @@ def dup(state):
 
 @core("_~")
 def splat(state):
-    items = state.stack.pop(expect=list)
+    items = state.stack.pop(coerce=Block.parse)
     state.stack.push_many(items)
 
 @core("-*")
 def negate(state):
-    a = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
     state.stack.push(-a)
 
 @core("-%")
 def reverse(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     state.stack.push(a[::-1])
 
 @core("!;")
@@ -255,13 +255,13 @@ def delete(state):
 
 @core(")")
 def pop_end(state):
-    *a, b = state.stack.pop(expect=list)
+    *a, b = state.stack.pop(coerce=Block.parse)
     state.stack.push(a)
     state.stack.push(b)
 
 @core("(")
 def pop_start(state):
-    a, *b = state.stack.pop(expect=list)
+    a, *b = state.stack.pop(coerce=Block.parse)
     state.stack.push(b)
     state.stack.push(a)
 
@@ -278,8 +278,8 @@ alias(">-<", "-% <->")
 
 @core(":%")
 def map(state):
-    code = state.stack.pop(expect=list)
-    items = state.stack.pop(expect=list)
+    code = state.stack.pop(coerce=Block.parse)
+    items = state.stack.pop(coerce=Block.parse)
     results = []
     for i in items:
         state.stack.push(i)
@@ -289,20 +289,20 @@ def map(state):
 
 @core(":/")
 def splat(state):
-    code = state.stack.pop(expect=list)
-    items = state.stack.pop(expect=list)
+    code = state.stack.pop(coerce=Block.parse)
+    items = state.stack.pop(coerce=Block.parse)
     for i in items:
         state.stack.push(i)
         state.run(code)
 
 @core("..")
 def range_(state):
-    a = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
     state.stack.push(list(range(a)))
 
 @core("..#")
 def length(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     state.stack.push(len(a))
 
 alias(":#", ": ..#")
@@ -312,9 +312,9 @@ alias(",,", "2 {#}")
 
 @core("_%_")
 def zip_with(state):
-    code = state.stack.pop(expect=list)
-    left = state.stack.pop(expect=list)
-    right = state.stack.pop(expect=list)
+    code = state.stack.pop(coerce=Block.parse)
+    left = state.stack.pop(coerce=Block.parse)
+    right = state.stack.pop(coerce=Block.parse)
     min_len = min(len(left), len(right))
     rest = left[min_len:] or right[min_len:]
     result = []
@@ -331,21 +331,21 @@ alias("#,_", ":# .. // [,,] _%_")
 
 @core("%")
 def modulo(state):
-    a = state.stack.pop(expect=int)
-    b = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
+    b = state.stack.pop(coerce=Number.parse)
     state.stack.push(b % a)
 
 @core("/")
 def int_divide(state):
-    a = state.stack.pop(expect=int)
-    b = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
+    b = state.stack.pop(coerce=Number.parse)
     state.stack.push(b // a)
 
 @core("~#~")
 def run_both(state):
-    amount = state.stack.pop(expect=int)
-    block_2 = state.stack.pop(expect=list)
-    block_1 = state.stack.pop(expect=list)
+    amount = state.stack.pop(coerce=Number.parse)
+    block_2 = state.stack.pop(coerce=Block.parse)
+    block_1 = state.stack.pop(coerce=Block.parse)
     items = state.stack.pop_many(amount)
     
     state.stack.push_many(items)
@@ -358,14 +358,14 @@ alias("/%", "[/] [%] 2 ~#~")
 
 @core("#/")
 def divisors(state):
-    a = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
     result = [i for i in range(1, a+1) if a % i == 0]
     state.stack.push(result)
 
 @core("%=")
 def divisible(state):
-    b = state.stack.pop(expect=int)
-    a = state.stack.push(expect=int)
+    b = state.stack.pop(coerce=Number.parse)
+    a = state.stack.push(coerce=Number.parse)
     result = int(a % b == 0)
     state.stack.push(result)
 
@@ -383,14 +383,14 @@ alias("#.%", "%:# 2 =")
 
 @core("?#")
 def random_number(state):
-    a = state.stack.pop(expect=int)
+    a = state.stack.pop(coerce=Number.parse)
     if a < 1:
         state.error("Cannot get random value with max < 1")
     state.stack.push(random.randrange(a))
 
 @core("?=")
 def choice(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     if not a:
         state.error("Choose from empty list")
     state.stack.push(random.choice(a))
@@ -404,8 +404,8 @@ alias("(*", "-- 2 /")
 
 @core("=#")
 def get_array_item(state):
-    a = state.stack.pop(expect=int)
-    b = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Number.parse)
+    b = state.stack.pop(coerce=Block.parse)
     a %= len(b)
     state.stack.push(b[a])
 
@@ -414,7 +414,7 @@ alias("2%", "2 %")
 
 @core("+/")
 def sum(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     result = 0
     for i in a:
         if not isinstance(i, int):
@@ -424,7 +424,7 @@ def sum(state):
 
 @core("*//")
 def product(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     result = 1
     for i in a:
         if not isinstance(i, int):
@@ -443,24 +443,24 @@ def newline(state):
 
 @core("=/")
 def split_newlines(state):
-    a = state.stack.pop(expect=str)
+    a = state.stack.pop(coerce=String.parse)
     state.stack.push(a.split("\n"))
 @core("*/")
 def join_newlines(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     if not all(isinstance(i, str) for i in a):
         state.error("Array item is not string")
     state.stack.push("\n".join(a))
 @core("/-\\")
 def ignore_top(state):
-    code = state.stack.pop(expect=list)
+    code = state.stack.pop(coerce=Block.parse)
     a = state.stack.pop()
     state.run(code)
     state.stack.push(a)
 @core(r"/#\\'")
 def ignore_top_n(state):
-    n = state.stack.pop(expect=int)
-    code = state.stack.pop(expect=list)
+    n = state.stack.pop(coerce=Number.parse)
+    code = state.stack.pop(coerce=Block.parse)
     top_n = state.stack.pop_many(n)
     state.run(code)
 # ignore top n, where n is a literal
@@ -471,11 +471,11 @@ alias("{/}", "' =/ {_' ' */ _}")
 
 @core('"/')
 def fracture(state):
-    a = state.stack.pop(expect=str)
+    a = state.stack.pop(coerce=String.parse)
     state.stack.push(list(a))
 @core('"*')
 def weld(state):
-    a = state.stack.pop(expect=list)
+    a = state.stack.pop(coerce=Block.parse)
     if not all(isinstance(i, str) for i in a):
         state.error("Array item is not string")
     state.stack.push("".join(a))
