@@ -104,9 +104,15 @@ a: number -> output(a)
 
 <
 | Output a string with a trailing newline.
-a: string -> output(a + '\n')
+a: string -> output(a, '\n')
   ' a <
 > output: a\n
+
+<#
+| Pop a number and output its decimal representation with a trailing newline.
+a: number -> output(a, '\n')
+  10 10 + <#
+> output: 20\n
 
 .'
 | Pop a string from the current call frame and output it.
@@ -117,7 +123,7 @@ a: string -> output(a + '\n')
 <'
 | Pop a string from the current call frame and output it,
 | with a trailing newline.
- -> output(call_stack.frames[0].pop(0) + '\n')
+ -> output(call_stack.frames[0].pop(0), '\n')
   .' Hello!
 > output: Hello!\n
 

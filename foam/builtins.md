@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists all 94 builtins that are currently available in Foam, as well as what they do.
+This file lists all 95 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -792,7 +792,7 @@ Usage:  → `stdin.get_integer()`
 
 Output a string with a trailing newline.
 
-Usage: `a: string` → `output(a + '\n')`
+Usage: `a: string` → `output(a, '\n')`
 
 ### Examples
 
@@ -800,12 +800,24 @@ Usage: `a: string` → `output(a + '\n')`
 | -------- | ------------- |
 | `' a <`  | `output: a\n` |
 
+## `<#`
+
+Pop a number and output its decimal representation with a trailing newline.
+
+Usage: `a: number` → `output(a, '\n')`
+
+### Examples
+
+| **Code**     | **Result**     |
+| ------------ | -------------- |
+| `10 10 + <#` | `output: 20\n` |
+
 ## `<'`
 
 Pop a string from the current call frame and output it,
 with a trailing newline.
 
-Usage:  → `output(call_stack.frames[0].pop(0) + '\n')`
+Usage:  → `output(call_stack.frames[0].pop(0), '\n')`
 
 ### Examples
 

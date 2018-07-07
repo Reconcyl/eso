@@ -99,6 +99,7 @@ def output_str(state):
 alias(".", '` ."')
 alias(".#", '>" ."')
 alias("<", '." \'|\n| ."')
+alias("<#", '>" <')
 alias(".'", ',@ ."')
 alias("<'", ",@ <")
 
