@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists all 95 builtins that are currently available in Foam, as well as what they do.
+This file lists all 97 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -13,6 +13,19 @@ Usage: `a: block` → `a[:-1]`
 | **Code**     | **Result** |
 | ------------ | ---------- |
 | `[a b c] !)` | `[a b]`    |
+
+## `!*`
+
+Pop a number and push its factorial.
+
+Usage: `a: number` → `a!`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `0 !*`   | `1`        |
+| `10 !*`  | `3628800`  |
 
 ## `!;`
 
@@ -264,6 +277,19 @@ Usage: `a: number` → `2*a + 1`
 | **Code** | **Result** |
 | -------- | ---------- |
 | `5 *)`   | `11`       |
+
+## `*/`
+
+Pop a block containing numbers and return the product of all the numbers.
+
+Usage: `a: block` → `block.product()`
+
+### Examples
+
+| **Code**          | **Result** |
+| ----------------- | ---------- |
+| `[] */`           | `1`        |
+| `5 .. [+1] :% */` | `120`      |
 
 ## `*/`
 

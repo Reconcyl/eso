@@ -567,6 +567,7 @@ a: block -> block.product()
 
 !*
 | Pop a number and push its factorial.
+a: number -> a!
   0 !*
 > 1
   10 !*
