@@ -159,7 +159,7 @@ def main():
     entries.sort(key=lambda entry: entry.name)
     with open("builtins.md", "w") as f:
         f.write("# Foam Builtins\n\n")
-        f.write("This file lists {} builtins".format(len(entries)))
+        f.write("This file lists all {} builtins".format(len(entries)))
         f.write(" that are currently available in Foam, "
                 "as well as what they do.")
         for entry in entries:

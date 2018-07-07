@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists 94 builtins that are currently available in Foam, as well as what they do.
+This file lists all 94 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
