@@ -386,6 +386,18 @@ def sum(state):
         result += i
     state.stack.push(result)
 
+@core("*/")
+def product(state):
+    a = state.stack.pop(expect=list)
+    result = 1
+    for i in a:
+        if not isinstance(i, int):
+            state.error("Array item is not integer")
+        result *= i
+    state.stack.push(result)
+
+alias("!*", ".. [+1] :% */")
+
 @core(" ")
 def space(state):
     state.stack.push(" ")

@@ -557,6 +557,21 @@ a: block -> block.sum()
   [] +/
 > 0
 
+*/
+| Pop a block containing numbers and return the product of all the numbers.
+a: block -> block.product()
+  [] */
+> 1
+  5 .. [+1] :% */
+> 120
+
+!*
+| Pop a number and push its factorial.
+  0 !*
+> 1
+  10 !*
+> 3628800
+
 | |
 | Push a space to the stack.
 | 
