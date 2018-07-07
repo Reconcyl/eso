@@ -249,7 +249,6 @@ def map(state):
         state.stack.push(i)
         state.run(code)
         results.append(state.stack.pop())
-    results = state.stack.pop_many(len(items))
     state.stack.push(results)
 
 @core(":/")
