@@ -4,6 +4,12 @@ a: integer, b: integer -> a + b
   1 2 +
 > 3
 
+*
+| Multiply two numbers.
+a: integer, b: integer -> a * b
+  # 5 # 7 *
+> 35
+
 ++
 | Concatenate two blocks.
 a: block, b: block -> a ++ b
@@ -489,3 +495,17 @@ a: block -> a.pick_random()
  -> [0, 1].pick_random()
   [%?] : ++ : ++ : ++ : ++ ~
 > [0 1 1 1 0 1 1 0]
+
+*)
+| Pop a number `n` and push `2n + 1`. Alias for `2 * +1`.
+a: number -> 2*a + 1
+  5
+> 11
+
+(*
+| Pop a number `n` and push `(n - 1)/2`. Alias for `-- 2 /`.
+a: number -> (a - 1) / 2
+  11
+> 5
+  22
+> 10

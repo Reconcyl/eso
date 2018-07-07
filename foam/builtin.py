@@ -30,6 +30,12 @@ def add(state):
     b = state.stack.pop(expect=int)
     state.stack.push(a + b)
 
+@core("*")
+def multiply(state):
+    a = state.stack.pop(expect=int)
+    a = state.stack.pop(expect=int)
+    state.stack.push(a * b)
+
 @core("++")
 def concat(state):
     a = state.stack.pop(expect=list)

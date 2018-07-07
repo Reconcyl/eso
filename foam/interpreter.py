@@ -16,11 +16,6 @@ class FoamStack():
         if not isinstance(item, expect):
             self.state.error("Expected type {}, got {}".format(expect.__name__, type(item).__name__))
         return item
-    def pop_n(self, n):
-        results = []
-        for _ in range(n):
-            results.append(self.stack.pop())
-        return results[::-1]
     def push_many(self, items):
         self.stack.extend(items)
     def pop_many(self, n):

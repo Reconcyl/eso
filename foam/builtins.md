@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists 75 builtins that are currently available in Foam, as well as what they do.
+This file lists 77 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -190,6 +190,30 @@ Usage: `a: block` → `a[:-1], a[-1]`
 | **Code**    | **Result** |
 | ----------- | ---------- |
 | `[a b c] )` | `[a b] c`  |
+
+## `*`
+
+Multiply two numbers.
+
+Usage: `a: integer, b: integer` → `a * b`
+
+### Examples
+
+| **Code**    | **Result** |
+| ----------- | ---------- |
+| `# 5 # 7 *` | `35`       |
+
+## `*)`
+
+Pop a number `n` and push `2n + 1`. Alias for `2 * +1`.
+
+Usage: `a: number` → `2*a + 1`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `5`      | `11`       |
 
 ## `+`
 
