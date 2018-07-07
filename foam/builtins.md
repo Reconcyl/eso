@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists 77 builtins that are currently available in Foam, as well as what they do.
+This file lists 81 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -125,9 +125,9 @@ Usage:  → `[0, 1].pick_random()`
 
 ### Examples
 
-| **Code**                     | **Result**          |
-| ---------------------------- | ------------------- |
-| `[%?] : ++ : ++ : ++ : ++ ~` | `[0 1 1 1 0 1 1 0]` |
+| **Code**                     | **Result**        |
+| ---------------------------- | ----------------- |
+| `[%?] : ++ : ++ : ++ : ++ ~` | `0 1 1 1 0 1 1 0` |
 
 ## `'`
 
@@ -178,6 +178,19 @@ Usage: `a: block` → `[1:-1]`
 | ----------------- | ---------- |
 | `[1 2 3 4 5] (!)` | `[2 3 4]`  |
 
+## `(*`
+
+Pop a number `n` and push `(n - 1)/2`. Alias for `-- 2 /`.
+
+Usage: `a: number` → `(a - 1) / 2`
+
+### Examples
+
+| **Code**  | **Result** |
+| --------- | ---------- |
+| `# 11 (*` | `5`        |
+| `# 27 (*` | `13`       |
+
 ## `)`
 
 Remove the last element of a block and push it separately.
@@ -213,7 +226,7 @@ Usage: `a: number` → `2*a + 1`
 
 | **Code** | **Result** |
 | -------- | ---------- |
-| `5`      | `11`       |
+| `5 *)`   | `11`       |
 
 ## `+`
 
@@ -238,6 +251,19 @@ Usage: `a: block, b: block` → `a ++ b`
 | **Code**         | **Result**  |
 | ---------------- | ----------- |
 | `[a b] [c d] ++` | `[a b c d]` |
+
+## `+/`
+
+Pop a block containing numbers and return the sum of all the numbers.
+
+Usage: `a: block` → `block.sum()`
+
+### Examples
+
+| **Code**  | **Result** |
+| --------- | ---------- |
+| `5 .. +/` | `10`       |
+| `[] +/`   | `0`        |
 
 ## `+1`
 
@@ -595,6 +621,19 @@ Usage:  → `2`
 | ----------- | ---------- |
 | `1 2 + 2 +` | `5`        |
 
+## `2%`
+
+Modulo by 2; push `0` if the input is even and `1` if it is odd.
+
+Usage: `a: number` → `a % 2`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `-196`   | `0`        |
+| `3`      | `1`        |
+
 ## `:`
 
 Pop an element from the stack and push back twice.
@@ -707,6 +746,21 @@ Usage: `a, b` → `!(a == b)`
 | `2 : + # 4 =`                                       | `1`        |
 | `# 5 ' 5 =`                                         | `0`        |
 | <pre>[0 1 2] [\>#] :%<br/>0 1 2 # 3 {#}<br/>=</pre> | `1`        |
+
+## `=#`
+
+Pop an index and a block, then return the element of the block
+at that index. Indexing is 0-based and cyclic, so the 4th element
+of `[a b c]` is considered to be `b`.
+
+Usage: `a: block, b: number` → `a[b % a.length]`
+
+### Examples
+
+| **Code**         | **Result** |
+| ---------------- | ---------- |
+| `[a b c] # 4 =#` | `b`        |
+| `# 5 .- 1 =#`    | `3`        |
 
 ## `=.`
 
