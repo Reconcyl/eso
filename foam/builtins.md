@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists most builtins currently available in Foam, as well as what they do.
+This file lists 45 builtins that are currently available in Foam, as well as what they do.
 
 ## `#`
 
@@ -102,7 +102,7 @@ Usage:  → `call_stack.frames[1].pop(0)`
 
 ## `,@*`
 
-Push the entirety of the callee's call frame.
+Push the entirety of the caller's call frame.
 
 Usage:  → `call_stack.frames[1].copy()`
 
@@ -124,6 +124,31 @@ Usage:  → `call_stack.frames[0].copy()`
 | ------------- | ------------------------- |
 | `,@*' : ++ .` | `output: [: ++ . : ++ .]` |
 
+## `-%`
+
+Pop a block and push it reversed.
+
+Usage: `a: block` → `reverse(a)`
+
+### Examples
+
+| **Code**     | **Result** |
+| ------------ | ---------- |
+| `[a b c] -%` | `[c b a]`  |
+
+## `-*`
+
+Pop a number and push its additive inverse.
+
+Usage: `a: number` → `-n`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `10 -*`  | `-10`      |
+| `-1 -*`  | `1`        |
+
 ## `-1`
 
 Push -1 to the stack. Alias for `# -1`.
@@ -135,6 +160,20 @@ Usage:  → `-1`
 | **Code** | **Result** |
 | -------- | ---------- |
 | `1 -1 +` | `0`        |
+
+## `->`
+
+Pop an element from the stack and a name from the current call
+frame, then redefine the operation with that name to push the
+element.
+
+Usage: `a` → `commands[call_stack.frames[0].pop()] = blockify(a)`
+
+### Examples
+
+| **Code**                 | **Result** |
+| ------------------------ | ---------- |
+| `1 -> a  10 -> b  b a -` | `9`        |
 
 ## `.`
 
@@ -269,6 +308,18 @@ Usage:  → `2`
 | ----------- | ---------- |
 | `1 2 + 2 +` | `5`        |
 
+## `:`
+
+Pop an element from the stack and push back twice.
+
+Usage: `a` → `a, a`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `e2 : +` | `200`      |
+
 ## `;#`
 
 Read an integer from STDIN.
@@ -367,6 +418,18 @@ Usage: `a: block, b` → `a ++ [b]`
 | **Code**          | **Result**     |
 | ----------------- | -------------- |
 | `[1 2 3 4] 10 _}` | `[1 2 3 4 10]` |
+
+## `_~`
+
+Pop a block from the stack and push its elements back, one by one.
+
+Usage: `a: block` → `...acal`
+
+### Examples
+
+| **Code**                   | **Result** |
+| -------------------------- | ---------- |
+| `10 [1 2] _~ ># // ># + +` | `13`       |
 
 ## `` ` ``
 

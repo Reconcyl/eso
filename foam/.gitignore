@@ -1,4 +1,10 @@
+# Python cached bytecode
 __pycache__/
 test/__pycache__/
-*.foam
 *.pyc
+
+# Foam program files
+*.foam
+
+# Shell scripts for various purposes
+*.sh

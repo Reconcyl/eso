@@ -95,7 +95,9 @@ def run_tests(lines):
             msg = expect[2:]
             result.assert_error(msg)
 
-with open("code_tests") as f:
+with open(os.path.join(current_dir, "code_tests")) as f:
     run_tests(f)
     if passed:
         print("All tests passed.")
+    else:
+        sys.exit(1)
