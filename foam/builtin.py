@@ -64,12 +64,10 @@ def mirror(state):
 
 @core("{#}")
 def wrap_n(state):
-    n = state.stack.pop(expect=int)
-    result = []
-    for _ in range(n):
-        result.append(state.stack.pop())
-    state.stack.push(result[::-1])
-    
+    n = state.stack.pop()
+    items = state.stack.pop_many(n)
+    state.stack.push(items)
+
 @core("~")
 def run(state):
     a = state.stack.pop(expect=list)
@@ -242,8 +240,16 @@ def map(state):
     for i in items:
         state.stack.push(i)
         state.run(code)
+    results = state.stack.pop_many(len(items))
+    state.stack.push(results)
 
-alias(":/", ":% _~")
+@core(":/")
+def splat(state):
+    code = state.stack.pop(expect=list)
+    items = state.stack.pop(expect=list)
+    for i in items:
+        state.stack.push(i)
+        state.run(code)
 
 @core("..")
 def range_(state):
@@ -258,7 +264,7 @@ def length(state):
 alias(":#", ": ..#")
     
 alias(".-", ".. -%")
-alias("_,_", "2 {#}")
+alias(",,", "2 {#}")
 
 @core("_%_")
 def zip_with(state):
@@ -277,7 +283,7 @@ def zip_with(state):
     state.stack.push(result)
 
 # enumerate
-alias("#,_", ":# .. // [_,_] _%_")
+alias("#,_", ":# .. // [,,] _%_")
 
 @core("%")
 def modulo(state):
@@ -289,7 +295,7 @@ def modulo(state):
 def int_divide(state):
     a = state.stack.pop(expect=int)
     b = state.stack.pop(expect=int)
-    state.stack.push(b % a)
+    state.stack.push(b // a)
 
 @core("~#~")
 def run_both(state):
@@ -326,7 +332,7 @@ def equiv(state):
     result = int(a == b)
     state.stack.push(result)
 
-# count divisorts
+# count divisors
 alias("%:#", "#/ ..#")
 # prime - I don't even care about efficiency
 alias("#.%", "%:# 2 =")

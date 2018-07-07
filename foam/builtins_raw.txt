@@ -252,7 +252,9 @@ a -> blockify(a)
 | frame, then redefine the operation with that name to push the
 | element.
 a -> commands[call_stack.frames[0].pop()] = blockify(a)
-  1 -> a  10 -> b  b a -
+  1 -> a
+  10 -> b
+  b a -
 > 9
 
 :
@@ -263,7 +265,7 @@ a -> a, a
 
 _~
 | Pop a block from the stack and push its elements back, one by one.
-a: block -> ...acal
+a: block -> ...a
   10 [1 2] _~ ># // ># + +
 > 13
 
@@ -286,3 +288,204 @@ a: block -> reverse(a)
 a -> 
   ' foo ' bar !; ."
 > output: foo
+
+)
+| Remove the last element of a block and push it separately.
+| Leave the block on the stack.
+a: block -> a[:-1], a[-1]
+  [a b c] )
+> [a b] c
+
+(
+| Remove the first element of a block and push it separately.
+| Leave the block on the stack.
+a: block -> a[1:], a[0]
+  [1 4 9 16] (
+> [4 9 16] 1
+
+!)
+| Pop a block and push it back without its last element.
+a: block -> a[:-1]
+  [a b c] !)
+> [a b]
+
+(!
+| Pop a block and push it back without its first element.
+a: block -> a[1:]
+  [foo bar baz] (!
+> [bar baz]
+
+(!)
+| Pop a block and push it back without its first or last element.
+a: block -> [1:-1]
+  [1 2 3 4 5] (!)
+> [2 3 4]
+
++1
+| Increment a number. Alias for `1 +`.
+a: number -> a + 1
+  1 2 -1
+  # 3 {#}
+  [+1] :%
+> [2 3 0]
+
+-
+| Subtract two numbers.
+a: number, b: number -> a - b
+  1 -1 -
+> 2
+
+--
+| Decrement a number. Alias for `1 -`.
+a: number -> a - 1
+  -1 --
+> -2
+
+<->
+| Palindromize: append a block and its reverse with the first element dropped.
+a: block -> a ++ reverse(a[1:])
+  [a b c] <->
+> [a b c b a]
+
+>-<
+| Reverse palindromize. Alias for `-% <->`.
+a: block -> reverse(a) ++ a[1:]
+  [foo bar baz] >-<
+> [baz bar foo bar baz]
+
+:%
+| Pop two blocks. Treat the second as a function and map it over the first.
+a: block, b: block -> map(b, a)
+  [1 2 3] [># 1-] :%
+> [0 1 2]
+
+:/
+| Pop two blocks. Treat the second as a function and map it over the first.
+| Rather than collecting the results into a new block, dump them onto the stack.
+a: block, b: block -> ...map(b, a)
+  [1 2 3] [># 1-] :/
+> 0, 1, 2
+
+..
+| Pop a number and push a block containing all nonnegative numbers less than it,
+| in sorted order.
+a: number -> [0..a-1]
+  [0 2 10] [># ..] :%
+> [[] [0 1] [0 1 2 3 4 5 6 7 8 9]]
+
+..#
+| Pop a block and push its length.
+a: block -> a.length
+  10 .. ..#
+> 10
+
+:#
+| Pop a block and push it back, along with its length.
+a: block -> a, a.length
+  [a b c d e f] :#
+> [a b c d e f] 6
+
+.-
+| Pop a number and push a reversed range. Alias for `.. -%`.
+a: number -> [a-1..0]
+  # 5 .-
+> [4 3 2 1 0]
+
+,,
+| Pop two stack elements and push a block containing them.
+| Alias for `2 {#}`.
+a, b -> [a b]
+  ' foo ' bar # 3 ,,
+> foo [bar 3]
+
+%
+| Modulo operation on two numbers. This uses Python's `%` operator,
+| where the result is only negative if the divisor is negative.
+a: number, b: number -> a % b
+  # 762 # -3 %
+> -1
+
+/
+| Integer division on two numbers. This uses Python's `//` operator,
+| which always rounds towards negative infinity.
+a: number, b: number -> a/b
+  # 123 # 11 /
+> 11
+
+~#~
+| Pop a number `n` and two blocks.
+| Execute both blocks, sharing `n` stack elements.
+...s, a: block, b: block, n: number -> b(a(s) + s[-n:])
+  5 [1+] [--] 1 ~#~
+> 4, 6
+  3 5 [+] [-] 2 ~#~
+> 8, -2
+
+/%
+| Pop two numbers and push their divmod.
+| Alias for `[/] [%] 2 ~#~`.
+a: number, b: number -> a/b, a%b
+  # 105 # 20 /%
+> [5 5]
+
+#/
+| Pop a number and push a block containing its divisors.
+a: number -> divisors(a)
+  # 360 #/
+> [1 2 3 4 5 6 8 9 10 12 15 18 20 24 30 36 40 45 60 72 90 120 180 360]
+
+%=
+| Pop two numbers and push whether the second is divisible by the first.
+a: number, b: number -> !(a % b)
+  8 4 %=
+> 1
+  100 29 %=
+> 0
+
+=
+| Pop two items and push `1` if they are equal, and `0` otherwise.
+| Elements of different types are never considered equal.
+a, b -> !(a == b)
+  2 : + # 4 =
+> 1
+  # 5 ' 5 =
+> 0
+  [0 1 2] [>#] :%
+  0 1 2 # 3 {#}
+  =
+> 1
+
+%:#
+| Pop a number and push the number of divisors it has.
+| Alias for `/# ..#`
+a: number -> divisors(a).length
+  e2 %:#
+> 9
+
+#.%
+| Pop a number and push `1` if it is prime, `0` otherwise.
+| Alias for `%:# 2 =`.
+a: number -> divisors(a).length == 2
+  # 19 #.%
+> 1
+  # 20 #.%
+> 0
+
+?#
+| Pop a number and return a uniformly random nonnegative integer
+| that is less than it.
+a: number -> floor(random() * a)
+  # e3 ?#
+> 413
+
+?=
+| Pop a block and return a randomly chosen element of that block.
+a: block -> a.pick_random()
+  [foo bar baz quux] ?=
+> baz
+
+%?
+| Randomly push either `0` or `1`. Alias for `2 ?#`.
+ -> [0, 1].pick_random()
+  [%?] : ++ : ++ : ++ : ++ ~
+> [0 1 1 1 0 1 1 0]

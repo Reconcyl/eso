@@ -29,6 +29,8 @@ def wrap(string, wrapper):
 def markdown_code(string):
     if not string:
         return ""
+    if "\n" in string:
+        return "<pre>" + markdown_escape(string).replace("\n", "<br/>") + "</pre>"
     if string.startswith("`"):
         string = " " + string
     if string.endswith("`"):
@@ -38,7 +40,7 @@ def markdown_code(string):
 
 # Make a string into acceptable Markdown text by escaping
 # special characters within it.
-MARKDOWN_SPECIAL_CHARACTERS = "`*_|"
+MARKDOWN_SPECIAL_CHARACTERS = "`*_|&<>"
 def markdown_escape(string):
     def chars():
         for char in string:
@@ -113,28 +115,31 @@ class BuiltinEntry():
 
 def get_entries(lines):
     lines = ListTraversal(lines)
+    def lines_with_prefix(prefix, error):
+        result = []
+        while True:
+            try:
+                line = remove_prefix(prefix, lines.next())
+            except ValueError:
+                lines.back()
+                break
+            result.append(line)
+        if not result:
+            raise error
+        return "\n".join(result)
     try:
         while True:
             name = lines.next()
-            description = []
-            while True:
-                try:
-                    line = remove_prefix("| ", lines.next())
-                except ValueError:
-                    lines.back()
-                    break
-                description.append(line)
-            if not description:
-                raise SyntaxError("Description must start with '| '.")
-            description = "\n".join(description)
+            description = lines_with_prefix(
+                "| ", 
+                SyntaxError("Expected description block prefixed with '| '"))
             usage = lines.next()
             examples = []
             while True:
                 try:
-                    code = remove_prefix("  ", lines.next())
-                    result = remove_prefix("> ", lines.next())
+                    code = lines_with_prefix("  ", ValueError)
+                    result = lines_with_prefix("> ", ValueError)
                 except ValueError:
-                    lines.back()
                     break
                 examples.append((code, result))
             if not examples:

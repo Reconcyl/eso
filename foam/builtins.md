@@ -1,6 +1,30 @@
 # Foam Builtins
 
-This file lists 45 builtins that are currently available in Foam, as well as what they do.
+This file lists 75 builtins that are currently available in Foam, as well as what they do.
+
+## `!)`
+
+Pop a block and push it back without its last element.
+
+Usage: `a: block` → `a[:-1]`
+
+### Examples
+
+| **Code**     | **Result** |
+| ------------ | ---------- |
+| `[a b c] !)` | `[a b]`    |
+
+## `!;`
+
+Pop an element from the stack and discard it.
+
+Usage: `a` → 
+
+### Examples
+
+| **Code**            | **Result**    |
+| ------------------- | ------------- |
+| `' foo ' bar !; ."` | `output: foo` |
 
 ## `#`
 
@@ -16,6 +40,32 @@ Usage:  → `int(call_stack.frames[0].pop(0))`
 | `# 99 # 4 +` | `103`      |
 | `# -5 # 5 +` | `0`        |
 
+## `#.%`
+
+Pop a number and push `1` if it is prime, `0` otherwise.
+Alias for `%:# 2 =`.
+
+Usage: `a: number` → `divisors(a).length == 2`
+
+### Examples
+
+| **Code**   | **Result** |
+| ---------- | ---------- |
+| `# 19 #.%` | `1`        |
+| `# 20 #.%` | `0`        |
+
+## `#/`
+
+Pop a number and push a block containing its divisors.
+
+Usage: `a: number` → `divisors(a)`
+
+### Examples
+
+| **Code**   | **Result**                                                             |
+| ---------- | ---------------------------------------------------------------------- |
+| `# 360 #/` | `[1 2 3 4 5 6 8 9 10 12 15 18 20 24 30 36 40 45 60 72 90 120 180 360]` |
+
 ## `#8`
 
 Push 256 to the stack. Alias for `# 256`.
@@ -28,6 +78,57 @@ Usage:  → `256`
 | --------- | ---------- |
 | `#8 10 +` | `276`      |
 
+## `%`
+
+Modulo operation on two numbers. This uses Python's `%` operator,
+where the result is only negative if the divisor is negative.
+
+Usage: `a: number, b: number` → `a % b`
+
+### Examples
+
+| **Code**       | **Result** |
+| -------------- | ---------- |
+| `# 762 # -3 %` | `-1`       |
+
+## `%:#`
+
+Pop a number and push the number of divisors it has.
+Alias for `/# ..#`
+
+Usage: `a: number` → `divisors(a).length`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `e2 %:#` | `9`        |
+
+## `%=`
+
+Pop two numbers and push whether the second is divisible by the first.
+
+Usage: `a: number, b: number` → `!(a % b)`
+
+### Examples
+
+| **Code**    | **Result** |
+| ----------- | ---------- |
+| `8 4 %=`    | `1`        |
+| `100 29 %=` | `0`        |
+
+## `%?`
+
+Randomly push either `0` or `1`. Alias for `2 ?#`.
+
+Usage:  → `[0, 1].pick_random()`
+
+### Examples
+
+| **Code**                     | **Result**          |
+| ---------------------------- | ------------------- |
+| `[%?] : ++ : ++ : ++ : ++ ~` | `[0 1 1 1 0 1 1 0]` |
+
 ## `'`
 
 Pop an element from the current call frame.
@@ -39,6 +140,56 @@ Usage:  → `call_stack.frames[1].pop(0)`
 | **Code**  | **Result** |
 | --------- | ---------- |
 | `' Hello` | `Hello`    |
+
+## `(`
+
+Remove the first element of a block and push it separately.
+Leave the block on the stack.
+
+Usage: `a: block` → `a[1:], a[0]`
+
+### Examples
+
+| **Code**       | **Result**   |
+| -------------- | ------------ |
+| `[1 4 9 16] (` | `[4 9 16] 1` |
+
+## `(!`
+
+Pop a block and push it back without its first element.
+
+Usage: `a: block` → `a[1:]`
+
+### Examples
+
+| **Code**           | **Result**  |
+| ------------------ | ----------- |
+| `[foo bar baz] (!` | `[bar baz]` |
+
+## `(!)`
+
+Pop a block and push it back without its first or last element.
+
+Usage: `a: block` → `[1:-1]`
+
+### Examples
+
+| **Code**          | **Result** |
+| ----------------- | ---------- |
+| `[1 2 3 4 5] (!)` | `[2 3 4]`  |
+
+## `)`
+
+Remove the last element of a block and push it separately.
+Leave the block on the stack.
+
+Usage: `a: block` → `a[:-1], a[-1]`
+
+### Examples
+
+| **Code**    | **Result** |
+| ----------- | ---------- |
+| `[a b c] )` | `[a b] c`  |
 
 ## `+`
 
@@ -64,6 +215,18 @@ Usage: `a: block, b: block` → `a ++ b`
 | ---------------- | ----------- |
 | `[a b] [c d] ++` | `[a b c d]` |
 
+## `+1`
+
+Increment a number. Alias for `1 +`.
+
+Usage: `a: number` → `a + 1`
+
+### Examples
+
+| **Code**                                  | **Result** |
+| ----------------------------------------- | ---------- |
+| <pre>1 2 -1<br/># 3 {#}<br/>[+1] :%</pre> | `[2 3 0]`  |
+
 ## `,`
 
 Read a character from STDIN and push it as a string.
@@ -87,6 +250,19 @@ Usage:  → `stdin.read()`
 | **Code** | **Result**    |
 | -------- | ------------- |
 | `,* ."`  | `cat program` |
+
+## `,,`
+
+Pop two stack elements and push a block containing them.
+Alias for `2 {#}`.
+
+Usage: `a, b` → `[a b]`
+
+### Examples
+
+| **Code**             | **Result**    |
+| -------------------- | ------------- |
+| `' foo ' bar # 3 ,,` | `foo [bar 3]` |
 
 ## `,@`
 
@@ -124,6 +300,18 @@ Usage:  → `call_stack.frames[0].copy()`
 | ------------- | ------------------------- |
 | `,@*' : ++ .` | `output: [: ++ . : ++ .]` |
 
+## `-`
+
+Subtract two numbers.
+
+Usage: `a: number, b: number` → `a - b`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `1 -1 -` | `2`        |
+
 ## `-%`
 
 Pop a block and push it reversed.
@@ -149,6 +337,18 @@ Usage: `a: number` → `-n`
 | `10 -*`  | `-10`      |
 | `-1 -*`  | `1`        |
 
+## `--`
+
+Decrement a number. Alias for `1 -`.
+
+Usage: `a: number` → `a - 1`
+
+### Examples
+
+| **Code** | **Result** |
+| -------- | ---------- |
+| `-1 --`  | `-2`       |
+
 ## `-1`
 
 Push -1 to the stack. Alias for `# -1`.
@@ -171,9 +371,9 @@ Usage: `a` → `commands[call_stack.frames[0].pop()] = blockify(a)`
 
 ### Examples
 
-| **Code**                 | **Result** |
-| ------------------------ | ---------- |
-| `1 -> a  10 -> b  b a -` | `9`        |
+| **Code**                                  | **Result** |
+| ----------------------------------------- | ---------- |
+| <pre>1 -\> a<br/>10 -\> b<br/>b a -</pre> | `9`        |
 
 ## `.`
 
@@ -224,6 +424,43 @@ Usage:  → `output(call_stack.frames[0].pop(0))`
 | -------- | ------------- |
 | `.' foo` | `output: foo` |
 
+## `.-`
+
+Pop a number and push a reversed range. Alias for `.. -%`.
+
+Usage: `a: number` → `[a-1..0]`
+
+### Examples
+
+| **Code** | **Result**    |
+| -------- | ------------- |
+| `# 5 .-` | `[4 3 2 1 0]` |
+
+## `..`
+
+Pop a number and push a block containing all nonnegative numbers less than it,
+in sorted order.
+
+Usage: `a: number` → `[0..a-1]`
+
+### Examples
+
+| **Code**              | **Result**                         |
+| --------------------- | ---------------------------------- |
+| `[0 2 10] [># ..] :%` | `[[] [0 1] [0 1 2 3 4 5 6 7 8 9]]` |
+
+## `..#`
+
+Pop a block and push its length.
+
+Usage: `a: block` → `a.length`
+
+### Examples
+
+| **Code**    | **Result** |
+| ----------- | ---------- |
+| `10 .. ..#` | `10`       |
+
 ## `.@`
 
 Pop an element from the stack and add it to the caller's frame.
@@ -247,6 +484,32 @@ Usage: `a: block` → `call_stack.frames[1].extend_front(a)`
 | **Code**              | **Result**   |
 | --------------------- | ------------ |
 | `10 [[1 +] .@*] ~ .#` | `output: 11` |
+
+## `/`
+
+Integer division on two numbers. This uses Python's `//` operator,
+which always rounds towards negative infinity.
+
+Usage: `a: number, b: number` → `a/b`
+
+### Examples
+
+| **Code**       | **Result** |
+| -------------- | ---------- |
+| `# 123 # 11 /` | `11`       |
+
+## `/%`
+
+Pop two numbers and push their divmod.
+Alias for `[/] [%] 2 ~#~`.
+
+Usage: `a: number, b: number` → `a/b, a%b`
+
+### Examples
+
+| **Code**        | **Result** |
+| --------------- | ---------- |
+| `# 105 # 20 /%` | `[5 5]`    |
 
 ## `//`
 
@@ -320,6 +583,43 @@ Usage: `a` → `a, a`
 | -------- | ---------- |
 | `e2 : +` | `200`      |
 
+## `:#`
+
+Pop a block and push it back, along with its length.
+
+Usage: `a: block` → `a, a.length`
+
+### Examples
+
+| **Code**           | **Result**        |
+| ------------------ | ----------------- |
+| `[a b c d e f] :#` | `[a b c d e f] 6` |
+
+## `:%`
+
+Pop two blocks. Treat the second as a function and map it over the first.
+
+Usage: `a: block, b: block` → `map(b, a)`
+
+### Examples
+
+| **Code**             | **Result** |
+| -------------------- | ---------- |
+| `[1 2 3] [># 1-] :%` | `[0 1 2]`  |
+
+## `:/`
+
+Pop two blocks. Treat the second as a function and map it over the first.
+Rather than collecting the results into a new block, dump them onto the stack.
+
+Usage: `a: block, b: block` → `...map(b, a)`
+
+### Examples
+
+| **Code**             | **Result** |
+| -------------------- | ---------- |
+| `[1 2 3] [># 1-] :/` | `0, 1, 2`  |
+
 ## `;#`
 
 Read an integer from STDIN.
@@ -356,6 +656,33 @@ Usage:  → `output(call_stack.frames[0].pop(0) + '\n')`
 | **Code**    | **Result**         |
 | ----------- | ------------------ |
 | `.' Hello!` | `output: Hello!\n` |
+
+## `<->`
+
+Palindromize: append a block and its reverse with the first element dropped.
+
+Usage: `a: block` → `a ++ reverse(a[1:])`
+
+### Examples
+
+| **Code**      | **Result**    |
+| ------------- | ------------- |
+| `[a b c] <->` | `[a b c b a]` |
+
+## `=`
+
+Pop two items and push `1` if they are equal, and `0` otherwise.
+Elements of different types are never considered equal.
+
+Usage: `a, b` → `!(a == b)`
+
+### Examples
+
+| **Code**                                            | **Result** |
+| --------------------------------------------------- | ---------- |
+| `2 : + # 4 =`                                       | `1`        |
+| `# 5 ' 5 =`                                         | `0`        |
+| <pre>[0 1 2] [\>#] :%<br/>0 1 2 # 3 {#}<br/>=</pre> | `1`        |
 
 ## `=.`
 
@@ -395,6 +722,43 @@ Usage: `a: string` → `int(a)`
 | -------- | ---------- |
 | `' 5 >#` | `5`        |
 
+## `>-<`
+
+Reverse palindromize. Alias for `-% <->`.
+
+Usage: `a: block` → `reverse(a) ++ a[1:]`
+
+### Examples
+
+| **Code**            | **Result**              |
+| ------------------- | ----------------------- |
+| `[foo bar baz] >-<` | `[baz bar foo bar baz]` |
+
+## `?#`
+
+Pop a number and return a uniformly random nonnegative integer
+that is less than it.
+
+Usage: `a: number` → `floor(random() * a)`
+
+### Examples
+
+| **Code**  | **Result** |
+| --------- | ---------- |
+| `# e3 ?#` | `413`      |
+
+## `?=`
+
+Pop a block and return a randomly chosen element of that block.
+
+Usage: `a: block` → `a.pick_random()`
+
+### Examples
+
+| **Code**                | **Result** |
+| ----------------------- | ---------- |
+| `[foo bar baz quux] ?=` | `baz`      |
+
 ## `@`
 
 Reverse the order of the first 3 stack items.
@@ -423,7 +787,7 @@ Usage: `a: block, b` → `a ++ [b]`
 
 Pop a block from the stack and push its elements back, one by one.
 
-Usage: `a: block` → `...acal`
+Usage: `a: block` → `...a`
 
 ### Examples
 
@@ -539,6 +903,20 @@ Usage: `a: block` → `call_stack.add_frame(a)`
 | **Code**    | **Result** |
 | ----------- | ---------- |
 | `1 2 [+] ~` | `3`        |
+
+## `~#~`
+
+Pop a number `n` and two blocks.
+Execute both blocks, sharing `n` stack elements.
+
+Usage: `...s, a: block, b: block, n: number` → `b(a(s) + s[-n:])`
+
+### Examples
+
+| **Code**            | **Result** |
+| ------------------- | ---------- |
+| `5 [1+] [--] 1 ~#~` | `4, 6`     |
+| `3 5 [+] [-] 2 ~#~` | `8, -2`    |
 
 ## `~*`
 
