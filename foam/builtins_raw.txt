@@ -535,3 +535,27 @@ a: block -> block.sum()
 > 10
   [] +/
 > 0
+
+| |
+| Push a space to the stack.
+| 
+| This is a literal space token, and can be written as `| |` in the source code.
+ -> " "
+  | | {_} : ++
+> [| | | |]
+
+|\n|
+| Push a newline to the stack.
+| 
+| This is a literal newline token, and can be written as
+| 
+|     |
+|     |
+| 
+| in the source code.
+ -> "\n"
+  |
+  | {_} : ++
+> [|
+> | |
+> |]

@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists 81 builtins that are currently available in Foam, as well as what they do.
+This file lists 83 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -969,6 +969,39 @@ Usage: `any` → `[a]`
 | **Code**      | **Result** |
 | ------------- | ---------- |
 | `' Hello {_}` | `[Hello]`  |
+
+## `| |`
+
+Push a space to the stack.
+
+This is a literal space token, and can be written as `| |` in the source code.
+
+Usage:  → `" "`
+
+### Examples
+
+| **Code**       | **Result**  |
+| -------------- | ----------- |
+| `| | {_} : ++` | `[| | | |]` |
+
+## `|\n|`
+
+Push a newline to the stack.
+
+This is a literal newline token, and can be written as
+
+    |
+    |
+
+in the source code.
+
+Usage:  → `"\n"`
+
+### Examples
+
+| **Code**                       | **Result**                       |
+| ------------------------------ | -------------------------------- |
+| <pre>\|<br/>\| {\_} : ++</pre> | <pre>[\|<br/>\| \|<br/>\|]</pre> |
 
 ## `~`
 
