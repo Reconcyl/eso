@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists all 97 builtins that are currently available in Foam, as well as what they do.
+This file lists all 98 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -280,19 +280,6 @@ Usage: `a: number` → `2*a + 1`
 
 ## `*/`
 
-Pop a block containing numbers and return the product of all the numbers.
-
-Usage: `a: block` → `block.product()`
-
-### Examples
-
-| **Code**          | **Result** |
-| ----------------- | ---------- |
-| `[] */`           | `1`        |
-| `5 .. [+1] :% */` | `120`      |
-
-## `*/`
-
 Pop a block of strings from the stack and join it on newlines.
 
 Usage: `a: string` → `a.join("\n")`
@@ -302,6 +289,19 @@ Usage: `a: string` → `a.join("\n")`
 | **Code**           | **Result**                         |
 | ------------------ | ---------------------------------- |
 | `[abc def ghi] */` | <pre>\|abc<br/>def<br/>ghi\|</pre> |
+
+## `*//`
+
+Pop a block containing numbers and return the product of all the numbers.
+
+Usage: `a: block` → `block.product()`
+
+### Examples
+
+| **Code**           | **Result** |
+| ------------------ | ---------- |
+| `[] *//`           | `1`        |
+| `5 .. [+1] :% *//` | `120`      |
 
 ## `+`
 
@@ -1105,6 +1105,23 @@ Usage: `...s, a: integer` → `...s[:a], s[a:]`
 | **Code**                      | **Result**     |
 | ----------------------------- | -------------- |
 | `' a ' b ' c ' d ' e # 4 {#}` | `a, [b c d e]` |
+
+## `{-`
+
+Continue discarding tokens from the current call frame until empty
+or a `-}` is found.
+
+Useful for comments.
+
+Usage:  → `while (call_stack.frames[0].pop() != "-}");`
+
+### Examples
+
+| **Code**       | **Result** |
+| -------------- | ---------- |
+| `10 {- 2 * -}` | `10`       |
+| `2 [{-] ~ +1`  | `3`        |
+| `2 [{-] ~* +1` | `2`        |
 
 ## `{/}`
 
