@@ -67,9 +67,9 @@ class SandboxedRun():
             print("The test")
             print_indent(self.code)
             print("did not error and generated a result stack of")
-            print_indent(self.result)
+            print_indent(self.result_stack)
             print("when it should have errored with the message:")
-            print_indent(self.msg)
+            print_indent(msg)
         elif self.error_msg != msg:
             passed = False
             print("The test")

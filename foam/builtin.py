@@ -205,16 +205,14 @@ def interpret_semicolon_hash(state):
 @core("`")
 def escape(state):
     def string_repr(obj):
-        if isinstance(obj, str):
-            if any((i in obj) for i in "|[] \n\t"):
-                result = "|{}|".format(obj.replace("\\", "\\\\").replace("|", "\\|"))
-            else:
-                result = obj
-            return result
-        elif isinstance(obj, list):
+        if isinstance(obj, list):
             return "[" + " ".join(string_repr(i) for i in obj) + "]"
         else:
-            state.error("Type {} cannot be escaped".format(type(obj).__name__))
+            obj = String.parse(state, obj)
+            if any((i in obj) for i in "|[] \n\t"):
+                return "|{}|".format(obj.replace("\\", "\\\\").replace("|", "\\|"))
+            else:
+                return obj
     a = state.stack.pop()
     state.stack.push(string_repr(a))
 
@@ -417,9 +415,7 @@ def sum(state):
     a = state.stack.pop(coerce=Block.parse)
     result = 0
     for i in a:
-        if not isinstance(i, int):
-            state.error("Array item is not integer")
-        result += i
+        result += Number.parse(state, i)
     state.stack.push(result)
 
 @core("*//")
@@ -427,9 +423,7 @@ def product(state):
     a = state.stack.pop(coerce=Block.parse)
     result = 1
     for i in a:
-        if not isinstance(i, int):
-            state.error("Array item is not integer")
-        result *= i
+        result *= Number.parse(state, i)
     state.stack.push(result)
 
 alias("!*", ".. [+1] :% *//")
@@ -448,9 +442,7 @@ def split_newlines(state):
 @core("*/")
 def join_newlines(state):
     a = state.stack.pop(coerce=Block.parse)
-    if not all(isinstance(i, str) for i in a):
-        state.error("Array item is not string")
-    state.stack.push("\n".join(a))
+    state.stack.push("\n".join(String.parse(state, i) for i in a))
 @core("/-\\")
 def ignore_top(state):
     code = state.stack.pop(coerce=Block.parse)
@@ -476,9 +468,7 @@ def fracture(state):
 @core('"*')
 def weld(state):
     a = state.stack.pop(coerce=Block.parse)
-    if not all(isinstance(i, str) for i in a):
-        state.error("Array item is not string")
-    state.stack.push("".join(a))
+    state.stack.push("".join(String.parse(i) for i in a))
 
 # with-chars
 alias('{"}', """ ' "/ {_' ' "* _} """)

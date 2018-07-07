@@ -68,12 +68,6 @@ NB. (or when I use it in a program).
 '
 ! Tried to pop from empty frame
 
-' 3 ' 3 +
-! Expected type int, got str
-
-[a b c] ' d ++
-! Expected type list, got str
-
 [1 ' 1 .@] ~ +
 -> 2
 
@@ -88,9 +82,6 @@ NB. (or when I use it in a program).
 
 # 4 >"
 -> "4"
-
-' 4 >"
-! Expected type int, got str
 
 [1 +] ' increment =. 2 increment
 -> 3
