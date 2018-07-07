@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists all 98 builtins that are currently available in Foam, as well as what they do.
+This file lists all 99 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -77,6 +77,21 @@ Usage:  → `int(call_stack.frames[0].pop(0))`
 | ------------ | ---------- |
 | `# 99 # 4 +` | `103`      |
 | `# -5 # 5 +` | `0`        |
+
+## `##`
+
+Discard the next token from the current call frame. Error if no
+token is available.
+
+Useful for comments.
+
+Usage:  → `call_stack.frames[0].pop();`
+
+### Examples
+
+| **Code**      | **Result** |
+| ------------- | ---------- |
+| `0 ## Hello!` | `0`        |
 
 ## `#,_`
 

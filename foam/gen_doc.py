@@ -163,8 +163,11 @@ def main():
     import sys
     with open("builtins_raw.txt") as f:
         content = f.read()
+    lines = content.split("\n")
+    if lines[-1] != "":
+        lines.append("")
     try:
-        entries = list(get_entries(content.split("\n")))
+        entries = list(get_entries(lines))
     except ParseError as error:
         index, message = error.args
         print("Parse error at line {}: {}".format(index, message))
