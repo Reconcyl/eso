@@ -246,6 +246,7 @@ def map(state):
     results = []
     for i in items:
         state.stack.push(i)
+        state.run(code)
         results.append(state.stack.pop())
     results = state.stack.pop_many(len(items))
     state.stack.push(results)
