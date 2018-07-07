@@ -47,9 +47,9 @@ Usage: `a: block` → `block.join("")`
 
 ### Examples
 
-| **Code**                  | **Result**            |
-| ------------------------- | --------------------- |
-| `[hello | | world] "* ."` | `output: hello world` |
+| **Code**                    | **Result**            |
+| --------------------------- | --------------------- |
+| `[hello \| \| world] "* ."` | `output: hello world` |
 
 ## `"/`
 
@@ -508,10 +508,10 @@ Usage: `a: string` → `output(uneval(a))`
 
 ### Examples
 
-| **Code**            | **Result**                |
-| ------------------- | ------------------------- |
-| `' |Hi there| .`    | `output: |Hi there|`      |
-| `[|foo bar| baz] .` | `output: [|foo bar| baz]` |
+| **Code**              | **Result**                  |
+| --------------------- | --------------------------- |
+| `' \|Hi there\| .`    | `output: \|Hi there\|`      |
+| `[\|foo bar\| baz] .` | `output: [\|foo bar\| baz]` |
 
 ## `."`
 
@@ -521,9 +521,9 @@ Usage: `a: string` → `output(a)`
 
 ### Examples
 
-| **Code**               | **Result**              |
-| ---------------------- | ----------------------- |
-| `' |Hello, World!| ."` | `output: Hello, World!` |
+| **Code**                 | **Result**              |
+| ------------------------ | ----------------------- |
+| `' \|Hello, World!\| ."` | `output: Hello, World!` |
 
 ## `.#`
 
@@ -1039,9 +1039,9 @@ Usage: `a: string` → `uneval(a)`
 
 ### Examples
 
-| **Code**         | **Result**      |
-| ---------------- | --------------- |
-| ``[a |b c|] ` `` | `|[a \|b c\|]|` |
+| **Code**           | **Result**          |
+| ------------------ | ------------------- |
+| ``[a \|b c\|] ` `` | `\|[a \\|b c\\|]\|` |
 
 ## `` `*``
 
@@ -1183,9 +1183,9 @@ Usage:  → `" "`
 
 ### Examples
 
-| **Code**       | **Result**  |
-| -------------- | ----------- |
-| `| | {_} : ++` | `[| | | |]` |
+| **Code**         | **Result**      |
+| ---------------- | --------------- |
+| `\| \| {_} : ++` | `[\| \| \| \|]` |
 
 ## `|\n|`
 

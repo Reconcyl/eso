@@ -26,10 +26,23 @@ def remove_prefix(prefix, string):
 def wrap(string, wrapper):
     return wrapper + string + wrapper
 
+# Put a backslash before the characters specified in `special`.
+def escape_special(special, string):
+    def chars():
+        for char in string:
+            if char in special:
+                yield "\\"
+            yield char
+    return "".join(chars())
+
+# Escape `|` characters in a string.
+def markdown_bar_escape(string):
+    return escape_special("|", string)
+
 # Turn a string into an acceptable Markdown code snippet
 # that displays as that string. For example, "abc" gets
 # turned into "`abc`", and "`" gets turned into "`` ` ``".
-def markdown_code(string):
+def markdown_code(string, table=False):
     if not string:
         return ""
     if "\n" in string:
@@ -38,19 +51,17 @@ def markdown_code(string):
         string = " " + string
     if string.endswith("`"):
         string = string + " "
+    if table:
+        # Code snippets can only use the `|` escape inside tables. 
+        string = markdown_bar_escape(string)
+    
     max_backticks = longest_run(string, "`")
     return wrap(string, "`" * (max_backticks + 1))
 
 # Make a string into acceptable Markdown text by escaping
 # special characters within it.
-MARKDOWN_SPECIAL_CHARACTERS = "`*_|&<>"
 def markdown_escape(string):
-    def chars():
-        for char in string:
-            if char in MARKDOWN_SPECIAL_CHARACTERS:
-                yield "\\"
-            yield char
-    return "".join(chars())
+    return escape_special("`*_|&<>", string)
 
 # Make a string into acceptable Markdown bold.
 def markdown_bold(string):
@@ -60,7 +71,9 @@ def markdown_bold(string):
 # with bold headers and code data.
 def markdown_table(headers, rows_data):
     def make_column(header, column_data):
-        column = [markdown_bold(header), *map(markdown_code, column_data)]
+        column = [markdown_bold(header),
+                  *(markdown_code(datum, table=True)
+                   for datum in column_data)]
         max_width = max(map(len, column))
         column = [elem.ljust(max_width) for elem in column]
         column.insert(1, "-" * max_width)
