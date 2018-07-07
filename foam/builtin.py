@@ -33,7 +33,7 @@ def add(state):
 @core("*")
 def multiply(state):
     a = state.stack.pop(expect=int)
-    a = state.stack.pop(expect=int)
+    b = state.stack.pop(expect=int)
     state.stack.push(a * b)
 
 @core("++")
