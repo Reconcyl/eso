@@ -383,7 +383,7 @@ def sum(state):
     for i in a:
         if not isinstance(i, int):
             state.error("Array item is not integer")
-        result += a
+        result += i
     state.stack.push(result)
 
 @core(" ")
