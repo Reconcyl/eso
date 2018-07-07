@@ -243,9 +243,10 @@ alias(">-<", "-% <->")
 def map(state):
     code = state.stack.pop(expect=list)
     items = state.stack.pop(expect=list)
+    results = []
     for i in items:
         state.stack.push(i)
-        state.run(code)
+        results.append(state.stack.pop())
     results = state.stack.pop_many(len(items))
     state.stack.push(results)
 
@@ -277,7 +278,7 @@ def zip_with(state):
     code = state.stack.pop(expect=list)
     left = state.stack.pop(expect=list)
     right = state.stack.pop(expect=list)
-    min_len = min([len(left), len(right)])
+    min_len = min(len(left), len(right))
     rest = left[min_len:] or right[min_len:]
     result = []
     for i in range(min_len):
@@ -384,10 +385,10 @@ def sum(state):
         result += a
     state.stack.push(result)
 
-@core("| |")
+@core(" ")
 def space(state):
     state.stack.push(" ")
-@core("|\n|")
+@core("\n")
 def newline(state):
     state.stack.push("\n")
 

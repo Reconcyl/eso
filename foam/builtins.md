@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists 91 builtins that are currently available in Foam, as well as what they do.
+This file lists 94 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -64,6 +64,18 @@ Usage:  → `int(call_stack.frames[0].pop(0))`
 | ------------ | ---------- |
 | `# 99 # 4 +` | `103`      |
 | `# -5 # 5 +` | `0`        |
+
+## `#,_`
+
+Pop a block. Push a new block with every element paired with its index.
+
+Usage: `a: block` → `[0..a.length-1].map(i -> [i, a[i]])`
+
+### Examples
+
+| **Code**        | **Result**                              |
+| --------------- | --------------------------------------- |
+| `[f o o b a r]` | `[[0 f] [1 o] [2 o] [3 b] [4 a] [5 r]]` |
 
 ## `#.%`
 
@@ -743,7 +755,7 @@ Usage: `a: block` → `a, a.length`
 
 Pop two blocks. Treat the second as a function and map it over the first.
 
-Usage: `a: block, b: block` → `map(b, a)`
+Usage: `a: block, b: block` → `a.map(b)`
 
 ### Examples
 
@@ -756,7 +768,7 @@ Usage: `a: block, b: block` → `map(b, a)`
 Pop two blocks. Treat the second as a function and map it over the first.
 Rather than collecting the results into a new block, dump them onto the stack.
 
-Usage: `a: block, b: block` → `...map(b, a)`
+Usage: `a: block, b: block` → `...a.map(b)`
 
 ### Examples
 
@@ -943,6 +955,20 @@ Usage: `a, b, c` → `c, b, a`
 | --------------------- | ------------------- |
 | `1 ' Hello [a b c] @` | `[a b c], Hello, 1` |
 
+## `_%_`
+
+Pop a block to serve as a function, then two more blocks. Act like
+Haskell's `zipWith`, but leave extra elements instead of truncating.
+
+Usage: `a: block, b: block, c: block` → `zip c over a, b`
+
+### Examples
+
+| **Code**                               | **Result**                |
+| -------------------------------------- | ------------------------- |
+| `3 , [10 8 6] [># +] _%_`              | `[10 9 8]`                |
+| `[[f o o] [b a r]] [[b a z]] [++] _%_` | `[[f o o b a r] [b a z]]` |
+
 ## `_}`
 
 Append an element to a list.
@@ -1016,6 +1042,20 @@ Usage:  → `1000`
 | --------- | ---------- |
 | `e3 e2 -` | `900`      |
 
+## `{"}`
+
+Pop a block. Prepend `"/` and append `"*` to it.
+This has the effect of making a block that acts on *arrays of characters*
+instead act on *strings*.
+
+Usage: `a: block` → `["/ ...a "/]`
+
+### Examples
+
+| **Code**                     | **Result**      |
+| ---------------------------- | --------------- |
+| `[foo bar baz] [-%]  {"} :%` | `[oof rab zab]` |
+
 ## `{#}`
 
 Pop `N` and turn the first `N` stack items into a block.
@@ -1024,9 +1064,9 @@ Usage: `...s, a: integer` → `...s[:a], s[a:]`
 
 ### Examples
 
-| **Code**                     | **Result**     |
-| ---------------------------- | -------------- |
-| `' a ' b ' c ' d 'e # 4 {#}` | `a, [b c d e]` |
+| **Code**                      | **Result**     |
+| ----------------------------- | -------------- |
+| `' a ' b ' c ' d ' e # 4 {#}` | `a, [b c d e]` |
 
 ## `{/}`
 

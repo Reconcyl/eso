@@ -75,20 +75,11 @@ def markdown_table(headers, rows_data):
     return "\n".join(rows_text)
 
 def generate_usage_message(usage_raw):
-    args, result = usage_raw.split(" -> ")
+    args, _, result = usage_raw.partition(" -> ")
     return " ".join(["Usage:",
                     markdown_code(args),
                     "→",
                     markdown_code(result)])
-
-def generate_builtin_description_markdown(name, description, usage, examples):
-    return "\n\n".join([
-        "## " + markdown_code(name),
-        description,
-        generate_usage_message(usage),
-        "### Examples",
-        markdown_table(["Code", "Result"], examples)
-    ])
 
 class ListTraversal():
     def __init__(self, target):
