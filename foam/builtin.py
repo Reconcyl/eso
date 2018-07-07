@@ -386,7 +386,7 @@ def sum(state):
         result += i
     state.stack.push(result)
 
-@core("*/")
+@core("*//")
 def product(state):
     a = state.stack.pop(expect=list)
     result = 1
@@ -396,7 +396,7 @@ def product(state):
         result *= i
     state.stack.push(result)
 
-alias("!*", ".. [+1] :% */")
+alias("!*", ".. [+1] :% *//")
 
 @core(" ")
 def space(state):
@@ -445,4 +445,12 @@ def weld(state):
     state.stack.push("".join(a))
 
 # with-chars
-alias('{"}', """ ' "/ {_' ' "* _}""")
+alias('{"}', """ ' "/ {_' ' "* _} """)
+
+@core("{-")
+def comment(state):
+    while state.get_frame(0) and state.pop_from_frame(0) != "-}":
+        pass
+
+# Single comment
+alias("##", ",@ !;")
