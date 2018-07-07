@@ -12,6 +12,9 @@ def longest_run(iterable, element):
             current = 0
     return longest
 
+class ParseError(Exception):
+    pass
+
 # Remove a prefix from a string. Throw an error
 # if the string does no have that prefix.
 def remove_prefix(prefix, string):
@@ -125,14 +128,15 @@ def get_entries(lines):
                 break
             result.append(line)
         if not result:
-            raise error
+            raise error()
         return "\n".join(result)
     try:
         while True:
             name = lines.next()
             description = lines_with_prefix(
-                "| ", 
-                SyntaxError("Expected description block prefixed with '| '"))
+                "| ",
+                lambda: ParseError(lines.index,
+                                   "Expected description block prefixed with '| '"))
             usage = lines.next()
             examples = []
             while True:
@@ -143,7 +147,7 @@ def get_entries(lines):
                     break
                 examples.append((code, result))
             if not examples:
-                raise SyntaxError("Examples must be given.")
+                raise ParseError(lines.index, "Examples must be given.")
             yield BuiltinEntry(name, description, usage, examples)
             while lines.next() == "":
                 pass
@@ -152,9 +156,15 @@ def get_entries(lines):
         pass
 
 def main():
+    import sys
     with open("builtins_raw.txt") as f:
         content = f.read()
-    entries = list(get_entries(content.split("\n")))
+    try:
+        entries = list(get_entries(content.split("\n")))
+    except ParseError as error:
+        index, message = error.args
+        print("Parse error at line {}: {}".format(index, message))
+        sys.exit(1)
     entries.sort(key=lambda entry: entry.name)
     with open("builtins.md", "w") as f:
         f.write("# Foam Builtins\n\n")

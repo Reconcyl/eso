@@ -1,6 +1,6 @@
 # Foam Builtins
 
-This file lists 83 builtins that are currently available in Foam, as well as what they do.
+This file lists 91 builtins that are currently available in Foam, as well as what they do.
 
 ## `!)`
 
@@ -25,6 +25,31 @@ Usage: `a` →
 | **Code**            | **Result**    |
 | ------------------- | ------------- |
 | `' foo ' bar !; ."` | `output: foo` |
+
+## `"*`
+
+Concatenate a block of strings into a single string.
+
+Usage: `a: block` → `block.join("")`
+
+### Examples
+
+| **Code**                  | **Result**            |
+| ------------------------- | --------------------- |
+| `[hello | | world] "* ."` | `output: hello world` |
+
+## `"/`
+
+Pop a string from the stack and push a block of single-character strings
+representing each element of the string.
+
+Usage: `a: string` → `[...a]`
+
+### Examples
+
+| **Code**   | **Result** |
+| ---------- | ---------- |
+| `' foo "/` | `[f o o]`  |
 
 ## `#`
 
@@ -227,6 +252,18 @@ Usage: `a: number` → `2*a + 1`
 | **Code** | **Result** |
 | -------- | ---------- |
 | `5 *)`   | `11`       |
+
+## `*/`
+
+Pop a block of strings from the stack and join it on newlines.
+
+Usage: `a: string` → `a.join("\n")`
+
+### Examples
+
+| **Code**           | **Result**                         |
+| ------------------ | ---------------------------------- |
+| `[abc def ghi] */` | <pre>\|abc<br/>def<br/>ghi\|</pre> |
 
 ## `+`
 
@@ -548,6 +585,35 @@ Usage: `a: number, b: number` → `a/b`
 | -------------- | ---------- |
 | `# 123 # 11 /` | `11`       |
 
+## `/#\`
+
+Pop a string from the current call frame and parse it as a number `n`.
+Pop a block off the stack, followed by `n` other items. Run the block
+on the rest of the stack, then push the items back again in the same
+order.
+
+Usage: `...s, a: block` → `a(s[:-n]), ...s[-n:] where n = call_stack.frames[0].pop(0)`
+
+### Examples
+
+| **Code**            | **Result**  |
+| ------------------- | ----------- |
+| `6 .. _~ [+] /#\ 3` | `0 3 3 4 5` |
+
+## `/#\'`
+
+Pop an integer `n` from the stack, then a block. Take `n` items
+off the stack, run the block on the rest of the stack, then
+push the items back again in the same order.
+
+Usage: `...s, a: block, b: number` → `a(s[:-b]), ...s[-b:]`
+
+### Examples
+
+| **Code**               | **Result**  |
+| ---------------------- | ----------- |
+| `6 .. _~ [+] # 3 /#\'` | `0 3 3 4 5` |
+
 ## `/%`
 
 Pop two numbers and push their divmod.
@@ -560,6 +626,21 @@ Usage: `a: number, b: number` → `a/b, a%b`
 | **Code**        | **Result** |
 | --------------- | ---------- |
 | `# 105 # 20 /%` | `[5 5]`    |
+
+## `/-\`
+
+Pop a block from the stack, then an item. Run the block on the
+rest of the stack, then push the item back again.
+
+This is often known as the "dip" operator.
+
+Usage: `...s, a, b: block` → `b(s), a`
+
+### Examples
+
+| **Code**         | **Result** |
+| ---------------- | ---------- |
+| `2 1 -1 [+] /-\` | `3 -1`     |
 
 ## `//`
 
@@ -775,6 +856,19 @@ Usage: `a: block, b: string` → `commands[string] = block`
 | ------------------- | ---------- |
 | `[+] ' - =. 10 2 -` | `12`       |
 
+## `=/`
+
+Pop a string from the stack and split it on newlines.
+Push a block containing the resulting parts.
+
+Usage: `a: string` → `a.split("\n")`
+
+### Examples
+
+| **Code**                                | **Result**      |
+| --------------------------------------- | --------------- |
+| <pre>' \|abc<br/>def<br/>ghi\| =/</pre> | `[abc def ghi]` |
+
 ## `>"`
 
 Pop an integer and push its string representation.
@@ -934,6 +1028,20 @@ Usage: `...s, a: integer` → `...s[:a], s[a:]`
 | ---------------------------- | -------------- |
 | `' a ' b ' c ' d 'e # 4 {#}` | `a, [b c d e]` |
 
+## `{/}`
+
+Pop a block. Prepend `=/` and append `*/` to it.
+This has the effect of making a block that acts on *blocks of lines*
+instead act on *strings*.
+
+Usage: `a: string, b: block` → `[=/ ...a */]`
+
+### Examples
+
+| **Code**                                         | **Result**      |
+| ------------------------------------------------ | --------------- |
+| <pre>' \|foo<br/>bar<br/>baz\| [[] :%] {/}</pre> | `[foo bar baz]` |
+
 ## `{_`
 
 Prepend an element to a list.
@@ -1005,7 +1113,7 @@ Usage:  → `"\n"`
 
 ## `~`
 
-Execute  the given block in a new call frame.
+Execute the given block in a new call frame.
 
 Usage: `a: block` → `call_stack.add_frame(a)`
 

@@ -416,8 +416,8 @@ def ignore_top_n(state):
 # ignore top n, where n is a literal
 alias("/#\\", ",@ ># /#\'")
 
-# with lines of string
-alias("{/}", "// =/ // ~ // */")
+# with-lines
+alias("{/}", "' =/ {_' ' */ _}")
 
 @core('"/')
 def fracture(state):
@@ -430,5 +430,5 @@ def weld(state):
         state.error("Array item is not string")
     state.stack.push("".join(a))
 
-# with fractured string
-alias('{"}', '// "/ // ~ // "*')
+# with-chars
+alias('{"}', """ ' "/ {_' ' "* _}""")
