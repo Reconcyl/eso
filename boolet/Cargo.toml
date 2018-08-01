@@ -1,0 +1,7 @@
+[package]
+name = "boolet"
+version = "0.1.0"
+authors = ["Reconcyl <22424430+Reconcyl@users.noreply.github.com>"]
+
+[dependencies]
+typed-arena = "1.4.1"
