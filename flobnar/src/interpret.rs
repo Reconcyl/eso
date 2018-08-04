@@ -365,7 +365,6 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
     fn eval(&mut self, context: EvalContext)
         -> Result<EvalTrampoline<Rand, R, W>, String>
     {
-        eprintln!("Eval {:?}", context.clone());
         use self::EvalTrampoline::*;
         let EvalContext(location, direction) = context;
         
