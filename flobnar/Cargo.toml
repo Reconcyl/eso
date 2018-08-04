@@ -1,0 +1,9 @@
+[package]
+name = "flobnar"
+version = "0.1.0"
+authors = ["chris"]
+
+[dependencies]
+num-bigint = "0.2"
+num-traits = "0.2.5"
+rand = "0.5"
