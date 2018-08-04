@@ -20,13 +20,13 @@ fn main() {
         || err_and_exit(String::from("Expected file name.")));
     for option in args {
         match option.as_str() {
-            "--wrap-on-invalid-output" 
+            "--wrap-on-invalid-output" | "-w"
                 => options.wrap_on_invalid_output = true,
-            "--ignore-invalid-terms"
+            "--ignore-invalid-terms" | "-i"
                 => options.ignore_invalid_terms = true,
-            "--enable-decimal-io-extension"
+            "--enable-decimal-io-extension" | "-d"
                 => options.enable_decimal_io_extension = true,
-            "--suppress-final-result"
+            "--suppress-final-result" | "-r"
                 => options.suppress_final_result = true,
             other => err_and_exit(format!("`{}` is not a valid flag.", other))
         }
