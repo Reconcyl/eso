@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use std::io::prelude::*;
 use std::char;
 
+use std::fmt::{Debug, Formatter};
+
 /// The value a blank cell is considered to have.
 const BLANK: u32 = b' ' as u32;
 
@@ -47,7 +49,17 @@ fn option_replace_if<T: Clone, F>(option: &mut Option<T>, new: &T, predicate: F)
     *option = Some(new_value);
 }
 
-#[derive(Clone, Copy)]
+/// Acts like Python's `%` operator: the result is always positive if the
+/// divisor is positive.
+fn bigint_real_modulo(n: &BigInt, d: &BigInt) -> BigInt {
+    let mut result = n % d;
+    if &result < &BigInt::zero() {
+        result += d;
+    }
+    result
+}
+
+#[derive(Debug, Clone, Copy)]
 enum Direction {
     North,
     South,
@@ -116,8 +128,16 @@ type TrampolineFn<Rand, R, W> =
 type Point = (BigInt, BigInt);
 
 /// A specification of the location and direction of an evaluation.
+#[derive(Clone)]
 struct EvalContext(Point, Direction);
 
+impl Debug for EvalContext {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), ::std::fmt::Error> {
+        write!(f, "({},{}) from {:?}", (self.0).0, (self.0).1, self.1)
+    }
+}
+
+#[derive(Debug)]
 struct Bounds {
     /// The lowest `y` coordinate.
     upper: BigInt,
@@ -235,11 +255,11 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
     /// for whatever reason.
     fn output_byte(&mut self, mut byte: BigInt) -> Result<(), String> {
         if self.options.wrap_on_invalid_output {
-            byte ^= BigInt::from(0x100);
+            byte = bigint_real_modulo(&byte, &BigInt::from(0x100))
         }
         let byte = byte.to_u8().ok_or_else(
             || format!("Failed to output: {} does not fit in a byte.\n\
-                        You can pass the `--wrap-on-invalid-output` flag\
+                        You can pass the `--wrap-on-invalid-output` flag \
                         to truncate.", &byte))?;
         self.output_stream.write_all(&[byte]).map_err(
             |e| format!("Failed to output: {}", e))
@@ -313,11 +333,11 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
     /// that are in bounds.
     fn cycle(&self, (mut x, mut y): Point) -> Point {
         x -= &self.grid.bounds.left;
-        x %= &self.grid.bounds.right - &self.grid.bounds.left;
+        x = bigint_real_modulo(&x, &(&self.grid.bounds.right - &self.grid.bounds.left + 1));
         x += &self.grid.bounds.left;
         
         y -= &self.grid.bounds.upper;
-        y %= &self.grid.bounds.lower - &self.grid.bounds.upper;
+        y = bigint_real_modulo(&y, &(&self.grid.bounds.lower - &self.grid.bounds.upper + 1));
         y += &self.grid.bounds.upper;
         
         (x, y)
@@ -345,6 +365,7 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
     fn eval(&mut self, context: EvalContext)
         -> Result<EvalTrampoline<Rand, R, W>, String>
     {
+        eprintln!("Eval {:?}", context.clone());
         use self::EvalTrampoline::*;
         let EvalContext(location, direction) = context;
         
@@ -476,6 +497,13 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
                     }
                 )
             }
+            '`' => {
+                binary_operator!(
+                    location.clone(), Direction::North,
+                    location,         Direction::South,
+                    |_, a, b| Ok(Return(BigInt::from((a > b) as u8)))
+                )
+            }
             '?' => {
                 let direction = self.rng.gen();
                 tail_call!(self.neighbor_context(location, direction, 1))
@@ -526,7 +554,7 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
             '$' => {
                 let argument = self.pop_argument().unwrap_or_else(BigInt::zero);
                 tail_call!(
-                    self.neighbor_context(location, direction, 1),
+                    self.neighbor_context(location, direction.opposite(), 1),
                     |self_: &mut Self, result: BigInt| {
                         self_.push_argument(argument);
                         Ok(Return(result))
