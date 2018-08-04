@@ -280,10 +280,10 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
             Ok(_)                             => Ok(Some(buffer[0])),
         }
     }
-    /// Input a decimal value and return it as a `BigInt`. Error on EOF, or if
-    /// the decimal cannot be read. Ignore all data until a literal is found,
-    /// and ignore a single byte after.
-    fn input_decimal(&mut self) -> Result<BigInt, String> {
+    /// Input a decimal value and return it as a `BigInt`. Return `None` on EOF.
+    /// Error if the decimal cannot be read. Ignore all data until a literal is
+    /// found, and ignore a single byte after.
+    fn input_decimal(&mut self) -> Result<Option<BigInt>, String> {
         // Scan until a digit or `-` is found.
         let sign: Sign;
         let mut digits: Vec<u8>;
@@ -291,31 +291,31 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
         /// Convenience macro for reading a byte.
         macro_rules! byte {
             () => {
-                self.input_byte()?.ok_or_else(
-                    || String::from("Failed to input: reached EOF"))?
+                self.input_byte()?
             }
         }
         
         // Discard bytes until we find a `-` or a digit.
         loop {
             match byte!() {
-                b'-' => {
+                Some(b'-') => {
                     sign = Sign::Minus;
                     digits = Vec::new();
                     break;
-                },
-                b => if let Some(digit) = parse_digit(b) {
+                }
+                Some(b) => if let Some(digit) = parse_digit(b) {
                     sign = Sign::Plus;
                     digits = vec![digit];
                     break;
                 }
+                None => return Ok(None)
             }
         }
         // Read bytes until we find something that's not a digit.
-        while let Some(digit) = parse_digit(byte!()) {
+        while let Some(digit) = byte!().and_then(parse_digit) {
             digits.push(digit);
         }
-        Ok(BigInt::from_radix_be(sign, &digits, 10).unwrap())
+        Ok(Some(BigInt::from_radix_be(sign, &digits, 10).unwrap()))
     }
     /// Push a value to the argument stack.
     fn push_argument(&mut self, argument: BigInt) {
@@ -570,11 +570,11 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
                 )
             }
             '~' => {
-                Ok(Return(
-                    self.input_byte()?
-                        .map(BigInt::from)
-                        .unwrap_or_else(|| BigInt::from(-1))
-                ))
+                if let Some(byte) = self.input_byte()? {
+                    Ok(Return(BigInt::from(byte)))
+                } else {
+                    tail_call!(self.neighbor_context(location, Direction::South, 1))
+                }
             }
             '.' if self.options.enable_decimal_io_extension => {
                 tail_call!(
@@ -586,7 +586,11 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
                 )
             }
             '&' if self.options.enable_decimal_io_extension => {
-                self.input_decimal().map(Return)
+                if let Some(int) = self.input_decimal()? {
+                    Ok(Return(int))
+                } else {
+                    tail_call!(self.neighbor_context(location, Direction::South, 1))
+                }
             }
             c => {
                 if let Some(digit) = c.to_digit(10) {

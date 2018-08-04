@@ -19,7 +19,7 @@ The interpreter should be passed an argument representing the name of the progra
 
 There are a few other areas where I took liberties because the spec wasn't entirely clear:
 
-- `~` returns `-1` on EOF. `&`, on the other hand causes the program to exit with an error message, because there's no way to signal an invalid integer. I may change this behavior in the future to be more consistent (for example, both of them might evaluate the term to their south on EOF).
+- `~` and `&` evaluate and return the term to their south if they encounter EOF.
 - Cell coordinates (those used by `g` and `p`) are "absolute": the first character in the original program text is considered to lie at `(0, 0)`, and changes in the bounding box don't affect this. You can use `p` to extend the bounding box to include coordinates in the negatives, and this will change the bounding box, which affects how `#` works, but it won't change the "origin" of the coordinate system. I have no clue whether this is what the reference interpreter does, and I'm too lazy to figure it out.
 
 > Absolutely no-one cares about Flobnar.
