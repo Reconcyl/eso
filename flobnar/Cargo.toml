@@ -1,7 +1,7 @@
 [package]
 name = "flobnar"
 version = "0.1.0"
-authors = ["chris"]
+authors = []
 
 [dependencies]
 num-bigint = "0.2"
