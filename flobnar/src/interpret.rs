@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::io::prelude::*;
 use std::char;
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Display, Debug, Formatter};
 
 /// The value a blank cell is considered to have.
 const BLANK: u32 = b' ' as u32;
@@ -57,6 +57,11 @@ fn bigint_real_modulo(n: &BigInt, d: &BigInt) -> BigInt {
         result += d;
     }
     result
+}
+
+/// Turn a displayable error into a string.
+fn fmt_err<T, E: Display>(result: Result<T, E>) -> Result<T, String> {
+    result.map_err(|e| format!("Failed to write output: {}", e))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -261,14 +266,13 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
             || format!("Failed to output: {} does not fit in a byte.\n\
                         You can pass the `--wrap-on-invalid-output` flag \
                         to truncate.", &byte))?;
-        self.output_stream.write_all(&[byte]).map_err(
-            |e| format!("Failed to output: {}", e))
+        fmt_err(self.output_stream.write_all(&[byte]))
     }
     /// Output the `BigInt` in decimal. Error if the `BigInt` cannot be written
     /// for whatever reason.
     fn output_decimal(&mut self, n: BigInt) -> Result<(), String> {
-        self.output_stream.write_all(n.to_string().as_bytes())
-            .map_err(|e| format!("Failed to output: {}", e))
+        fmt_err(self.output_stream.write_all(n.to_string().as_bytes()))?;
+        fmt_err(self.output_stream.flush())
     }
     /// Input a byte and return it. Return `None` on EOF. Return an error if an
     /// I/O error ocurred.
