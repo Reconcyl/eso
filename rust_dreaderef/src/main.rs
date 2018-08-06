@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
 extern crate num;
-mod lib;
+
+mod interpreter;
+mod compress;
 
 fn main() {
     println!("Hello, world!");

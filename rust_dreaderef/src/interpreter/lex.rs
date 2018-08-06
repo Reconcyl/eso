@@ -1,5 +1,6 @@
 use std::str::Chars;
 use std::mem;
+use std::string::ToString;
 
 use num::BigInt;
 use num::bigint::Sign;
@@ -11,7 +12,7 @@ macro_rules! try_option {
     })
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     Literal(BigInt),
     Unset,
@@ -19,10 +20,16 @@ pub enum Token {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct LexError {
+struct LexError {
     row: usize,
     col: usize,
     mes: String
+}
+
+impl ToString for LexError {
+    fn to_string(&self) -> String {
+        format!("Lex error ({}:{}): {}", self.row, self.col, &self.mes)
+    }
 }
 
 struct LineLexer<'a> {
@@ -84,7 +91,7 @@ impl<'a> LineLexer<'a> {
         let mut digits = Vec::new();
         self.read_digits(&mut digits);
         if digits.is_empty() {
-            return self.error(format!("Expected digit after '-', got {:?}", self.char_cache.unwrap()));
+            return self.error(format!("expected digit after '-', got {:?}", self.char_cache.unwrap()));
         }
         self.push_literal(BigInt::from_radix_be(Sign::Minus, &*digits, 10).unwrap());
         Ok(())
@@ -113,7 +120,7 @@ impl<'a> LineLexer<'a> {
             "chro" => 6,
             "chri" => 7,
             other => return self.error(format!(
-                "Word must be one of {{end, deref, add, mul, bool, numo, chro, chri}}, \
+                "word must be one of {{end, deref, add, mul, bool, numo, chro, chri}}, \
                 got {:?}", other))
         };
         self.push_literal(BigInt::from(number));
@@ -124,7 +131,7 @@ impl<'a> LineLexer<'a> {
         loop {
             let c = match self.next_char() {
                 Some(c) => c,
-                None => return self.error(format!("Expected closing quote before end-of-line"))
+                None => return self.error(format!("expected closing quote before end-of-line"))
             };
             let c = if escaped {
                 escaped = false;
@@ -132,10 +139,11 @@ impl<'a> LineLexer<'a> {
                     'n' => '\n',
                     't' => '\t',
                     'r' => '\r',
+                    '0' => '\0',
                     q if q == quote => q,
                     '\\' => '\\',
                     other => return self.error(format!(
-                        "Unrecognized escape sequence '\\{}'", other)),
+                        "unrecognized escape sequence '\\{}'", other)),
                 }
             } else {
                 match c {
@@ -167,7 +175,7 @@ impl<'a> LineLexer<'a> {
             '\'' => self.scan_string('\''),
             '?' => self.unset(),
             '*' => self.hole(),
-            c => self.error(format!("Unexpected character {:?}", c))
+            c => self.error(format!("unexpected character {:?}", c))
         })
     }
     fn lex(mut self) -> Result<Vec<Token>, LexError> {
@@ -198,10 +206,11 @@ fn process_line(tokens: &mut Vec<Token>, row: usize, mut line: String) -> Result
     Ok(())
 }
 
-pub fn lex(s: &str) -> Result<Vec<Token>, LexError> {
+pub fn lex(s: &str) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
     for (row, line) in s.lines().enumerate() {
-        process_line(&mut tokens, row, line.to_string())?;
+        process_line(&mut tokens, row, line.to_string())
+            .map_err(|e| e.to_string())?;
     }
     Ok(tokens)
 }
@@ -229,6 +238,11 @@ mod tests {
         
         assert!(lex("-abc").is_err());
         assert!(lex("-1 -2 --3").is_err());
+        
+        assert_eq!(lex("?"), Ok(vec![Token::Unset]));
+        assert_eq!(lex("*"), Ok(vec![Token::Hole]));
+        
+        assert!(lex("#").is_err())
     } 
     #[test]
     fn space() {
@@ -252,6 +266,16 @@ mod tests {
         assert_eq!(lex(r#""""#), lex(""));
         assert_eq!(lex(r#" "abc" "def" "#), lex(r#" "abcdef" "#));
         assert_eq!(lex(r#" 'Waffles' "#), lex(r#" "Waffles" "#));
+        assert_eq!(lex(r#" '\n\t\r\0' "#), lex("10 9 13 0"));
+        
+        assert!(lex(r#" ' "#).is_err());
+        assert!(lex(r#" '\h' "#).is_err());
+    }
+    
+    #[test]
+    fn words() {
+        assert_eq!(lex("end deref add mul bool numo chro chri"), lex("0 1 2 3 4 5 6 7"));
+        assert!(lex("deferefedefer").is_err());
     }
     
     #[test]
