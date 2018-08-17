@@ -319,6 +319,10 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
         while let Some(digit) = byte!().and_then(parse_digit) {
             digits.push(digit);
         }
+        // `BigInt::from_radix_be` panics when given an empty list of digits.
+        if digits.is_empty() {
+            digits.push(0);
+        }
         Ok(Some(BigInt::from_radix_be(sign, &digits, 10).unwrap()))
     }
     /// Push a value to the argument stack.
