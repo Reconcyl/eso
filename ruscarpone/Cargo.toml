@@ -1,0 +1,6 @@
+[package]
+name = "ruscarpone"
+version = "0.1.0"
+authors = ["ScratchMan544 <>"]
+
+[dependencies]
