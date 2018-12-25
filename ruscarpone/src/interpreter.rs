@@ -240,6 +240,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
         }
         // This includes the final opening '[', so we remove that.
         characters.pop();
+        characters.reverse();
         Ok(characters)
     }
     fn push_string(&mut self, string: &str) {
