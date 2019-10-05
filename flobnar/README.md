@@ -10,8 +10,6 @@ This implementation supports all behavior mentioned in the spec and runs all of 
 
 To use the interpreter, download the project and build it with `cargo build --release`. This will generate an executable called `flobnar` in the subdirectory `target/release`.
 
-This project requires a nightly Rust compiler. If you installed Rust using Rustup, you can use `rustup override set nightly` before building to switch to the nightly compiler for this project.
-
 The interpreter should be passed an argument representing the name of the program (the spec did not mention a canonical file extension, nor could I find any evidence that one existed, so I use `.flob`). It also supports the following arguments:
 
 - `--wrap-on-invalid-output` (`-w`): The Flobnar spec leaves outputting a number outside the range of ASCII undefined. Without this flag, the interpreter will always output a number if it can fit in a byte, and will exit with an error message otherwise. With this flag, the number will be truncated to fit in a byte before being output.
