@@ -6,8 +6,6 @@ use num_traits::identities::Zero;
 use rand::prelude::*;
 use rand::distributions::Standard;
 
-use std::boxed::FnBox;
-
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::char;
@@ -126,7 +124,7 @@ enum EvalTrampoline<Rand, R, W> {
 
 /// Represents the type of a trampolined function.
 type TrampolineFn<Rand, R, W> =
-    Box<FnBox(&mut Playfield<Rand, R, W>, BigInt)
+    Box<dyn FnOnce(&mut Playfield<Rand, R, W>, BigInt)
         -> Result<EvalTrampoline<Rand, R, W>, String>>;
 
 /// Represents a point on the grid.
@@ -622,19 +620,7 @@ impl<Rand: Rng, R: Read, W: Write> Playfield<Rand, R, W> {
         loop {
             let result = match current_task {
                 Task::Eval(context) => self.eval(context),
-                
-                // This line is the only reason we need nightly.
-                //
-                // It's currently impossible to call a `Box<FnOnce>` due to DST
-                // restrictions, so we need to use the unstable `FnBox` instead.
-                // You still can't use the sugar to call it because it takes a
-                // reference argument, which is desugared to a higher-rank
-                // lifetime that causes problems. As such, we need to use the
-                // `call_box` desugaring instead.
-                //
-                // In addition, another issue with `FnBox` required me to
-                // annotate most of the closure parameters within `eval()`.
-                Task::Apply(func, input) => func.call_box((self, input)),
+                Task::Apply(func, input) => func(self, input),
             }?;
             current_task = match result {
                 EvalTrampoline::Return(i) => {
