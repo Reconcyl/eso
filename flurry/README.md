@@ -76,3 +76,5 @@ The first argument (`-inn` in this example) specifies IO behavior with 3 charact
   - `i` means the contents of STDIN are interpreted as integers.
   - `b` means the contents of STDIN are interpreted as their byte values.
   - `n` means the contents of STDIN is ignored.
+
+The default IO configuration is `-ini` if the code was passed in a file, and `-ddn` if the code was passed with `-c`.

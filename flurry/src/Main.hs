@@ -40,7 +40,7 @@ parseCfg args = do
         (('-' : ioCfgStr) : "-c" : code : inputs) -> Just (ioCfgStr, True,  code, inputs)
         (                   "-c" : code : inputs) -> Just ("ddn",    True,  code, inputs)
         (('-' : ioCfgStr) :        file : inputs) -> Just (ioCfgStr, False, file, inputs)
-        (                          file : inputs) -> Just ("bnb",    False, file, inputs)
+        (                          file : inputs) -> Just ("ini",    False, file, inputs)
         _                                         -> Nothing
     io <- parseIoCfg ioCfg
     parsedArgs <- mapM readMaybe inputArgs
