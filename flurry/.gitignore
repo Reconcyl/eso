@@ -1,0 +1,4 @@
+# Executable files
+target/
+# Editor files
+**/*.swp
