@@ -19,8 +19,7 @@ getInputs s = read <$> getInputDigitStrings s
 
         getInputDigitStrings :: String -> [String]
         getInputDigitStrings (d1:d2:rest)
-            | isDigit d1 || d1 == '-', isDigit d2
-                = mapHead (d1:) $ getInputDigitStrings (d2:rest)
+            | isDigit d1, isDigit d2 = mapHead (d1:) $ getInputDigitStrings (d2:rest)
         getInputDigitStrings (d:rest)
             | isDigit d = [d] : getInputDigitStrings rest
             | otherwise = getInputDigitStrings rest
