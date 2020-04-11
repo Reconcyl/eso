@@ -68,10 +68,12 @@ combS = Func $ \a -> pure $ Func $ \b -> pure $ Func $ \c -> do
 church :: Int -> Expr
 church n = Func $ \f -> pure $ Func $ \z -> repM n f z
     where
-        repM 0  _ z = pure z
-        repM n' f z = do
-            prev <- repM (n' - 1) f z
-            runExpr f prev
+        repM n' f z
+            | n' <  0 = error "negative numbers cannot be made into church numerals"
+            | n' == 0 = pure z
+            | n' >  0 = do
+                prev <- repM (n' - 1) f z
+                runExpr f prev
 
 
 -- Main interpreter logic

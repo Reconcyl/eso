@@ -1,6 +1,9 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, MultiWayIf #-}
 
-import Data.Char (isDigit, chr, ord)
+import Data.Word (Word8)
+import Data.ByteString (ByteString)
+import Data.ByteString.Internal (w2c)
+import qualified Data.ByteString as BS
 
 import System.Environment (getArgs, getProgName)
 import System.IO (hPutStrLn, stderr)
@@ -10,20 +13,30 @@ import Text.Read (readMaybe)
 import AST (parse)
 import Interpreter (run)
 
-getInputs :: String -> [Int]
-getInputs s = read <$> getInputDigitStrings s
+parseInputBytes :: ByteString -> [Int]
+parseInputBytes = map fromIntegral . BS.unpack
+
+parseInputDecimal :: ByteString -> [Int]
+parseInputDecimal = fmap read . getDigitStrings
     where
         mapHead :: (a -> a) -> [a] -> [a]
         mapHead f (a:as) = f a : as
         mapHead _ []     = []
 
-        getInputDigitStrings :: String -> [String]
-        getInputDigitStrings (d1:d2:rest)
-            | isDigit d1, isDigit d2 = mapHead (d1:) $ getInputDigitStrings (d2:rest)
-        getInputDigitStrings (d:rest)
-            | isDigit d = [d] : getInputDigitStrings rest
-            | otherwise = getInputDigitStrings rest
-        getInputDigitStrings [] = []
+        isDigit :: Word8 -> Bool
+        isDigit n = 48 <= n && n <= 57
+
+        getDigitStrings :: ByteString -> [String]
+        getDigitStrings s
+            | Just (d1, s') <- BS.uncons s
+            = if | not $ isDigit d1
+                     -> getDigitStrings s'
+                 | Just (d2, _) <- BS.uncons s', isDigit d2
+                     -> mapHead (w2c d1 :) $ getDigitStrings s'
+                 | otherwise
+                     -> [w2c d1] : getDigitStrings s'
+            | otherwise
+            = []
 
 data OutCfg = OutInt | OutByte | OutDebug | OutNone
 data RetCfg = RetInt           | RetDebug | RetNone
@@ -77,6 +90,7 @@ printHelp progName = do
     errLn $ progName ++ " [io config] -c [code]  [inputs...]   " ++
                "run [code] with [inputs...] on top of the stack"
 
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -90,14 +104,14 @@ main = do
                 Nothing -> errLn "Code could not be parsed."
                 Just ast -> do
                     stdInputs <- case inCfg io of
-                        InInt  -> getInputs <$> getContents
-                        InByte -> map ord <$> getContents
+                        InInt  -> parseInputDecimal <$> BS.getContents
+                        InByte -> parseInputBytes <$> BS.getContents
                         InNone -> return []
                     let stack = stdInputs ++ inputArgs
                     let (returnVal, outputs) = run ast stack
                     case outCfg io of
                         OutInt   -> putStrLn $ unwords $ map show outputs
-                        OutByte  -> putStrLn $ map chr outputs
+                        OutByte  -> BS.putStr $ BS.pack $ map fromIntegral outputs
                         OutDebug -> mapM_ (errLn . ("Output: " ++) . show) outputs
                         OutNone  -> return ()
                     case returnVal of
