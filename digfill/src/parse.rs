@@ -37,7 +37,7 @@ pub enum DirIns {
 /// only contain one of a fixed set of contents that appear in the program.
 /// As such, they can be referred to by their index.
 #[derive(Debug)]
-pub struct InscriptionIdx(usize);
+pub struct InscriptionIdx(pub usize);
 
 struct Parser<'a> {
     inscriptions: Vec<Vec<Ins>>,
