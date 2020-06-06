@@ -1,6 +1,14 @@
 use std::str::Chars;
 
+/// Represents an error encountered while parsing.
+#[derive(Debug)]
+pub enum Error {
+    Unexpected { c: char, line: usize, col: usize },
+    UnexpectedEof,
+}
+
 /// Represents an instruction.
+#[derive(Debug)]
 pub enum Ins {
     Dir(Dir, DirIns),
     Nop,
@@ -8,9 +16,11 @@ pub enum Ins {
 }
 
 /// Represents a direction.
+#[derive(Debug)]
 pub enum Dir { N, E, W, S }
 
 /// Represents a directed instruction.
+#[derive(Debug)]
 pub enum DirIns {
     Dig,
     Fill,
@@ -26,6 +36,7 @@ pub enum DirIns {
 /// Inscriptions cannot be dynamically constructed at runtime - they can
 /// only contain one of a fixed set of contents that appear in the program.
 /// As such, they can be referred to by their index.
+#[derive(Debug)]
 pub struct InscriptionIdx(usize);
 
 struct Parser<'a> {
@@ -69,8 +80,18 @@ impl<'a> Parser<'a> {
 
         loop {
             match self.next() {
-                None      => if top_level { break } else { return Err(Error::UnexpectedEof) }
-                Some(')') => if top_level { return Err(Error::UnexpectedEof) } else { break }
+                None => if top_level {
+                    break
+                } else {
+                    return Err(Error::UnexpectedEof)
+                }
+
+                Some(')') => if top_level {
+                    return Err(Error::Unexpected { c: ')', line: self.line, col: self.col })
+                } else {
+                    break
+                }
+                
                 Some('@') => make_dir_ins!(DirIns::Dig),
                 Some('#') => make_dir_ins!(DirIns::Fill),
                 Some('$') => make_dir_ins!(DirIns::Step),
@@ -95,11 +116,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub enum Error {
-    Unexpected { c: char, line: usize, col: usize },
-    UnexpectedEof,
-}
-
 pub fn parse(s: &str) -> Result<Vec<Vec<Ins>>, Error> {
     let mut parser = Parser {
         inscriptions: Vec::new(),
@@ -107,6 +123,6 @@ pub fn parse(s: &str) -> Result<Vec<Vec<Ins>>, Error> {
         line: 0,
         col: 0,
     };
-    parser.parse_inscription(false)?;
+    parser.parse_inscription(true)?;
     Ok(parser.inscriptions)
 }
