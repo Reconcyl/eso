@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::Chars;
 
 /// Represents an error encountered while parsing.
@@ -7,8 +8,19 @@ pub enum Error {
     UnexpectedEof,
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Unexpected { c, line, col }
+                => write!(f, "Unexpected char {:?} at line {}, col {}", c, line + 1, col + 1),
+            Self::UnexpectedEof
+                => write!(f, "Unexpected EOF"),
+        }
+    }
+}
+
 /// Represents an instruction.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Ins {
     Dir(Dir, DirIns),
     Nop,
@@ -16,11 +28,11 @@ pub enum Ins {
 }
 
 /// Represents a direction.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Dir { N, E, W, S }
 
 /// Represents a directed instruction.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum DirIns {
     Dig,
     Fill,
@@ -36,7 +48,7 @@ pub enum DirIns {
 /// Inscriptions cannot be dynamically constructed at runtime - they can
 /// only contain one of a fixed set of contents that appear in the program.
 /// As such, they can be referred to by their index.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct InscriptionIdx(pub usize);
 
 struct Parser<'a> {
@@ -91,7 +103,7 @@ impl<'a> Parser<'a> {
                 } else {
                     break
                 }
-                
+
                 Some('@') => make_dir_ins!(DirIns::Dig),
                 Some('#') => make_dir_ins!(DirIns::Fill),
                 Some('$') => make_dir_ins!(DirIns::Step),
