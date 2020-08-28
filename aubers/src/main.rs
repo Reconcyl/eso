@@ -9,6 +9,7 @@ enum Halt {
     UnknownCmd(BigInt),
     UnknownArg(BigInt),
     OutOfBounds(BigInt),
+    NotByte(BigInt),
     End,
 }
 
@@ -20,6 +21,33 @@ enum Reg { A, B }
 
 /// One of the standard expressions.
 enum Arg { VarA, VarB, VarI, VarO, RefA, RefB, One }
+
+/// The result of evaluating an argument.
+#[derive(Clone, Copy)]
+enum EvalResult<'a> {
+    Large(&'a BigInt),
+    Small(usize),
+}
+
+impl EvalResult<'_> {
+    fn to_bigint(self) -> BigInt {
+        match self {
+            Self::Large(n) => n.clone(),
+            Self::Small(n) => n.into(),
+        }
+    }
+
+    fn to_usize(self) -> Option<usize> {
+        match self {
+            Self::Large(n) => n.to_usize(),
+            Self::Small(n) => Some(n),
+        }
+    }
+
+    fn to_u8(self) -> Option<u8> {
+        self.to_usize()?.to_u8()
+    }
+}
 
 /// The state of a running Aubergine program.
 struct State {
@@ -40,8 +68,18 @@ impl State {
         }
     }
 
+    /// Read a single byte from input.
+    fn read(&mut self) -> Result<u8, Halt> {
+        todo!()
+    }
+
+    /// Write a single byte to output.
+    fn write(&mut self, _b: u8) -> Result<(), Halt> {
+        todo!()
+    }
+
     /// Get an element from a tape associated with a given index.
-    fn deref<'a>(tape: &'a [BigInt], idx: &BigInt) -> Result<&'a BigInt, Halt> {
+    fn get<'a>(tape: &'a [BigInt], idx: &BigInt) -> Result<&'a BigInt, Halt> {
         if let Some(i) = idx.to_usize() {
             if let Some(v) = tape.get(i) {
                 return Ok(v);
@@ -51,7 +89,7 @@ impl State {
     }
 
     /// Mutably get an element from a tape associated with a given index.
-    fn deref_mut<'a>(tape: &'a mut [BigInt], idx: &BigInt)
+    fn get_mut<'a>(tape: &'a mut [BigInt], idx: &BigInt)
         -> Result<&'a mut BigInt, Halt>
     {
         if let Some(i) = idx.to_usize() {
@@ -64,7 +102,7 @@ impl State {
 
     /// Dereference one register and copy it to another register.
     fn mem_to_reg(&mut self, dst: Reg, src: Reg) -> Result<(), Halt> {
-        let reg_val = Self::deref(&self.tape, match src {
+        let reg_val = Self::get(&self.tape, match src {
             Reg::A => &self.a,
             Reg::B => &self.b,
         })?;
@@ -110,6 +148,23 @@ impl State {
         }
     }
 
+    /// Evaluate an argument and apply a function to the result.
+    fn eval<F, R>(&mut self, arg: Arg, f: F) -> Result<R, Halt>
+        where F: FnOnce(EvalResult) -> R
+    {
+        use Arg::*;
+        use EvalResult::*;
+        match arg {
+            VarA => Ok(f(Large(&self.a))),
+            VarB => Ok(f(Large(&self.b))),
+            VarI => Ok(f(Small(self.ip))),
+            VarO => Ok(f(Small(self.read()? as usize))),
+            RefA => Ok(f(Large(Self::get(&self.tape, &self.a)?))),
+            RefB => Ok(f(Large(Self::get(&self.tape, &self.b)?))),
+            One => Ok(f(Small(1))),
+        }
+    }
+
     /// Execute a single instruction.
     fn step(&mut self) -> Result<(), Halt> {
         // there's no way `tape` is large enough for this to overflow
@@ -125,6 +180,7 @@ impl State {
             (Mov, RefA, RefA) => {}
             (Mov, VarB, VarB) => {}
             (Mov, RefB, RefB) => {}
+            (Mov, VarI, VarI) => {}
 
             // register-to-register assignments
             (Mov, VarA, VarB) => self.a.clone_from(&self.b),
@@ -140,10 +196,23 @@ impl State {
             (Mov, VarA, One) => util::assign_from_u8(&mut self.a, 1),
             (Mov, VarB, One) => util::assign_from_u8(&mut self.b, 1),
 
+            // assignments to `i`
+            (Mov, VarI, arg) =>
+                self.ip = self.eval(arg, |r| r.to_usize().ok_or(Halt::End))??,
+
+            // assignments to `o`
+            (Mov, VarO, arg) => {
+                let b = self.eval(arg, |r| match r.to_u8() {
+                    Some(b) => Ok(b),
+                    None => Err(Halt::NotByte(r.to_bigint())),
+                })??;
+                self.write(b)?
+            }
+
             (Add, _, _) | (Sub, _, _) | (Jnz, _, _) => todo!(),
             _ => todo!(),
         }
-        todo!()
+        Ok(())
     }
 }
 
