@@ -101,6 +101,40 @@ impl State {
         Err(Halt::OutOfBounds(idx.clone()))
     }
 
+    /// Get mutable references to the values referred to by each register.
+    /// Return `None` if the registers are equal or `Err(_)` if they are
+    /// out of bounds.
+    fn deref_regs_mut(&mut self)
+        -> Result<Option<(&mut BigInt, &mut BigInt)>, Halt>
+    {
+        let idx_a = match self.a.to_usize() {
+            Some(a) => a,
+            None => return Err(Halt::OutOfBounds(self.a.clone())),
+        };
+        let idx_b = match self.b.to_usize() {
+            Some(b) => b,
+            None => return Err(Halt::OutOfBounds(self.b.clone())),
+        };
+
+        let ref_a = self.tape.get_mut(idx_a)
+            .ok_or(Halt::OutOfBounds(self.a.clone()))?
+            as *mut BigInt;
+        let ref_b = self.tape.get_mut(idx_b)
+            .ok_or(Halt::OutOfBounds(self.b.clone()))?;
+
+        Ok(if std::ptr::eq(ref_a, ref_b) {
+            None
+        } else {
+            // SAFETY: we have already checked that `ref_a != ref_b`.
+            unsafe {
+                Some((
+                    ref_a.as_mut().unwrap(),
+                    ref_b,
+                ))
+            }
+        })
+    }
+
     /// Dereference one register and copy it to another register.
     fn mem_to_reg(&mut self, dst: Reg, src: Reg) -> Result<(), Halt> {
         let reg_val = Self::get(&self.tape, match src {
@@ -187,6 +221,16 @@ impl State {
             (Mov, VarA, VarB) => self.a.clone_from(&self.b),
             (Mov, VarB, VarA) => self.b.clone_from(&self.a),
 
+            // memory-to-memory assignments
+            (Mov, RefA, RefB) =>
+                if let Some((ref_a, ref_b)) = self.deref_regs_mut()? {
+                    ref_a.clone_from(ref_b);
+                }
+            (Mov, RefB, RefA) =>
+                if let Some((ref_a, ref_b)) = self.deref_regs_mut()? {
+                    ref_b.clone_from(ref_a);
+                }
+
             // memory-to-register assignments
             (Mov, VarA, RefA) => self.mem_to_reg(Reg::A, Reg::A)?,
             (Mov, VarA, RefB) => self.mem_to_reg(Reg::A, Reg::B)?,
@@ -272,7 +316,6 @@ impl State {
             (Mov, One, _) => return Err(Halt::AssignToOne),
 
             (Add, _, _) | (Sub, _, _) | (Jnz, _, _) => todo!(),
-            _ => todo!(),
         }
         Ok(())
     }
