@@ -3,6 +3,8 @@ use num_traits::cast::ToPrimitive as _;
 
 mod util;
 
+/// Possible circumstances that can halt the execution
+/// of am Aubergine program.
 enum Halt {
     UnknownCmd(BigInt),
     UnknownArg(BigInt),
@@ -19,6 +21,7 @@ enum Reg { A, B }
 /// One of the standard expressions.
 enum Arg { VarA, VarB, VarI, VarO, RefA, RefB, One }
 
+/// The state of a running Aubergine program.
 struct State {
     a: BigInt,
     b: BigInt,
@@ -27,6 +30,7 @@ struct State {
 }
 
 impl State {
+    /// Initialize the state.
     fn new(code: Vec<BigInt>) -> Self {
         Self {
             a: BigInt::default(),
@@ -36,6 +40,7 @@ impl State {
         }
     }
 
+    /// Get an element from a tape associated with a given index.
     fn deref<'a>(tape: &'a [BigInt], idx: &BigInt) -> Result<&'a BigInt, Halt> {
         if let Some(i) = idx.to_usize() {
             if let Some(v) = tape.get(i) {
@@ -45,7 +50,20 @@ impl State {
         Err(Halt::OutOfBounds(idx.clone()))
     }
 
-    fn deref_to_reg(&mut self, dst: Reg, src: Reg) -> Result<(), Halt> {
+    /// Mutably get an element from a tape associated with a given index.
+    fn deref_mut<'a>(tape: &'a mut [BigInt], idx: &BigInt)
+        -> Result<&'a mut BigInt, Halt>
+    {
+        if let Some(i) = idx.to_usize() {
+            if let Some(v) = tape.get_mut(i) {
+                return Ok(v);
+            }
+        }
+        Err(Halt::OutOfBounds(idx.clone()))
+    }
+
+    /// Dereference one register and copy it to another register.
+    fn mem_to_reg(&mut self, dst: Reg, src: Reg) -> Result<(), Halt> {
         let reg_val = Self::deref(&self.tape, match src {
             Reg::A => &self.a,
             Reg::B => &self.b,
@@ -57,10 +75,7 @@ impl State {
         Ok(())
     }
 
-    fn read_u8(&mut self) -> u8 {
-        todo!()
-    }
-
+    /// Attempt to interpret the value at a given index as a command.
     fn parse_cmd(&self, pos: usize) -> Result<Cmd, Halt> {
         match self.tape.get(pos) {
             Some(i) =>
@@ -76,6 +91,7 @@ impl State {
         }
     }
 
+    /// Attempt to interpret the value at a given index as an argument.
     fn parse_arg(&self, pos: usize) -> Result<Arg, Halt> {
         match self.tape.get(pos) {
             Some(i) =>
@@ -94,7 +110,9 @@ impl State {
         }
     }
 
+    /// Execute a single instruction.
     fn step(&mut self) -> Result<(), Halt> {
+        // there's no way `tape` is large enough for this to overflow
         let cmd = self.parse_cmd(self.ip)?;
         let arg_1 = self.parse_arg(self.ip + 1)?;
         let arg_2 = self.parse_arg(self.ip + 2)?;
@@ -104,17 +122,19 @@ impl State {
         match (cmd, arg_1, arg_2) {
             // redundant assignments
             (Mov, VarA, VarA) => {}
+            (Mov, RefA, RefA) => {}
             (Mov, VarB, VarB) => {}
+            (Mov, RefB, RefB) => {}
 
-            // variable copies
+            // register-to-register assignments
             (Mov, VarA, VarB) => self.a.clone_from(&self.b),
             (Mov, VarB, VarA) => self.b.clone_from(&self.a),
 
-            // variable references
-            (Mov, VarA, RefA) => self.deref_to_reg(Reg::A, Reg::A)?,
-            (Mov, VarA, RefB) => self.deref_to_reg(Reg::A, Reg::B)?,
-            (Mov, VarB, RefA) => self.deref_to_reg(Reg::B, Reg::A)?,
-            (Mov, VarB, RefB) => self.deref_to_reg(Reg::B, Reg::B)?,
+            // memory-to-register assignments
+            (Mov, VarA, RefA) => self.mem_to_reg(Reg::A, Reg::A)?,
+            (Mov, VarA, RefB) => self.mem_to_reg(Reg::A, Reg::B)?,
+            (Mov, VarB, RefA) => self.mem_to_reg(Reg::B, Reg::A)?,
+            (Mov, VarB, RefB) => self.mem_to_reg(Reg::B, Reg::B)?,
 
             // const assignments
             (Mov, VarA, One) => util::assign_from_u8(&mut self.a, 1),
