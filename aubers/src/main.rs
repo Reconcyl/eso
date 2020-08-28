@@ -11,6 +11,7 @@ enum Halt {
     OutOfBounds(BigInt),
     NotByte(BigInt),
     AssignToOne,
+    VarOLogic,
     End,
 }
 
@@ -312,10 +313,31 @@ impl State {
                 util::assign_from_u8(ref_b, b);
             }
 
-            // assignments to `1` are not allowed
-            (Mov, One, _) => return Err(Halt::AssignToOne),
+            // doubling values
+            (Add, VarA, VarA) => self.a *= 2,
+            (Add, VarB, VarB) => self.b *= 2,
+            (Add, VarI, VarI) => match self.ip.checked_mul(2) {
+                Some(new_ip) => self.ip = new_ip,
+                None => return Err(Halt::OutOfBounds(
+                    BigInt::from(self.ip) * 2)),
+            }
+            (Add, RefA, RefA) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                *ref_a *= 2;
+            }
+            (Add, RefB, RefB) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                *ref_b *= 2;
+            }
 
-            (Add, _, _) | (Sub, _, _) | (Jnz, _, _) => todo!(),
+            // `o` is not allowed outside of assignments
+            (_, VarO, _) | (_, _, VarO) =>
+                return Err(Halt::VarOLogic),
+
+            // assignments to `1` are not allowed
+            (_, One, _) => return Err(Halt::AssignToOne),
+
+            (Sub, _, _) | (Jnz, _, _) => todo!(),
         }
         Ok(())
     }
