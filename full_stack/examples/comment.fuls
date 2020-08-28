@@ -1,0 +1,7 @@
+<c[{
+  The easiest way to represent comments is to
+  is to put them in a block that gets skipped.
+  For example, this program works by pushing
+  zero-initialized variable `c` and then looping
+  conditional on the value of `c`.
+}]>
