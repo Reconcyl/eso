@@ -10,6 +10,7 @@ enum Halt {
     UnknownArg(BigInt),
     OutOfBounds(BigInt),
     NotByte(BigInt),
+    AssignToOne,
     End,
 }
 
@@ -192,9 +193,43 @@ impl State {
             (Mov, VarB, RefA) => self.mem_to_reg(Reg::B, Reg::A)?,
             (Mov, VarB, RefB) => self.mem_to_reg(Reg::B, Reg::B)?,
 
+            // register-to-memory assignments
+            (Mov, RefA, VarA) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                ref_a.clone_from(&self.a);
+            }
+            (Mov, RefA, VarB) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                ref_a.clone_from(&self.b);
+            }
+            (Mov, RefA, VarI) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                util::assign_from_usize(ref_a, self.ip)
+            }
+            (Mov, RefB, VarA) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                ref_b.clone_from(&self.a);
+            }
+            (Mov, RefB, VarB) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                ref_b.clone_from(&self.b);
+            }
+            (Mov, RefB, VarI) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                util::assign_from_usize(ref_b, self.ip)
+            }
+
             // const assignments
             (Mov, VarA, One) => util::assign_from_u8(&mut self.a, 1),
             (Mov, VarB, One) => util::assign_from_u8(&mut self.b, 1),
+            (Mov, RefA, One) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                util::assign_from_u8(ref_a, 1);
+            }
+            (Mov, RefB, One) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                util::assign_from_u8(ref_b, 1);
+            }
 
             // assignments to `i`
             (Mov, VarI, arg) =>
@@ -208,6 +243,33 @@ impl State {
                 })??;
                 self.write(b)?
             }
+
+            // assigning `i` to things
+            (Mov, VarA, VarI) => util::assign_from_usize(&mut self.a, self.ip),
+            (Mov, VarB, VarI) => util::assign_from_usize(&mut self.b, self.ip),
+
+            // assigning `o` to things
+            (Mov, VarA, VarO) => {
+                let b = self.read()?;
+                util::assign_from_u8(&mut self.a, b);
+            }
+            (Mov, VarB, VarO) => {
+                let b = self.read()?;
+                util::assign_from_u8(&mut self.b, b);
+            }
+            (Mov, RefA, VarO) => {
+                let b = self.read()?;
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                util::assign_from_u8(ref_a, b);
+            }
+            (Mov, RefB, VarO) => {
+                let b = self.read()?;
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                util::assign_from_u8(ref_b, b);
+            }
+
+            // assignments to `1` are not allowed
+            (Mov, One, _) => return Err(Halt::AssignToOne),
 
             (Add, _, _) | (Sub, _, _) | (Jnz, _, _) => todo!(),
             _ => todo!(),
