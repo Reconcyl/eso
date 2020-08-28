@@ -339,6 +339,18 @@ impl State {
                 *ref_b += 1;
             }
 
+            // adding `i` to things
+            (Add, VarA, VarI) => self.a += self.ip,
+            (Add, VarB, VarI) => self.a += self.ip,
+            (Add, RefA, VarI) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                *ref_a += self.ip;
+            }
+            (Add, RefB, VarI) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                *ref_b += self.ip;
+            }
+
             // `o` is not allowed outside of assignments
             (_, VarO, _) | (_, _, VarO) =>
                 return Err(Halt::VarOLogic),
