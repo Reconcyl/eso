@@ -1,6 +1,8 @@
 use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive as _;
 
+use std::mem;
+
 mod util;
 
 /// Possible circumstances that can halt the execution
@@ -313,6 +315,12 @@ impl State {
                 util::assign_from_u8(ref_b, b);
             }
 
+            // `o` is not allowed outside of assignments
+            (_, VarO, _) | (_, _, VarO) => return Err(Halt::VarOLogic),
+
+            // assignments to `1` are not allowed
+            (_, One, _) => return Err(Halt::AssignToOne),
+
             // doubling values
             (Add, VarA, VarA) => self.a *= 2,
             (Add, VarB, VarB) => self.b *= 2,
@@ -326,9 +334,25 @@ impl State {
                 *ref_b *= 2;
             }
 
+            // adding things to `a` and `b`
+            (Add, VarA, arg) => {
+                let mut a = mem::take(&mut self.a);
+                self.eval(arg, |r| match r {
+                    EvalResult::Large(n) => a += n,
+                    EvalResult::Small(n) => a += n,
+                })?;
+                self.a = a;
+            }
+            (Add, VarB, arg) => {
+                let mut b = mem::take(&mut self.b);
+                self.eval(arg, |r| match r {
+                    EvalResult::Large(n) => b += n,
+                    EvalResult::Small(n) => b += n,
+                })?;
+                self.b = b;
+            }
+
             // adding `1` to things
-            (Add, VarA, One) => self.a += 1,
-            (Add, VarB, One) => self.b += 1,
             (Add, VarI, One) => self.ip += 1,
             (Add, RefA, One) => {
                 let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
@@ -340,8 +364,6 @@ impl State {
             }
 
             // adding `i` to things
-            (Add, VarA, VarI) => self.a += self.ip,
-            (Add, VarB, VarI) => self.a += self.ip,
             (Add, RefA, VarI) => {
                 let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
                 *ref_a += self.ip;
@@ -351,12 +373,20 @@ impl State {
                 *ref_b += self.ip;
             }
 
-            // `o` is not allowed outside of assignments
-            (_, VarO, _) | (_, _, VarO) =>
-                return Err(Halt::VarOLogic),
-
-            // assignments to `1` are not allowed
-            (_, One, _) => return Err(Halt::AssignToOne),
+            // adding things to `i`
+            (Add, VarI, arg) => {
+                // not very efficient, but it's simplest
+                // way to handle negatives properly
+                let mut new_ip = BigInt::from(self.ip);
+                self.eval(arg, |r| match r {
+                    EvalResult::Large(n) => new_ip += n,
+                    EvalResult::Small(n) => new_ip += n,
+                })?;
+                match new_ip.to_usize() {
+                    Some(new_ip) => self.ip = new_ip,
+                    None => return Err(Halt::OutOfBounds(new_ip))
+                }
+            }
 
             (Sub, _, _) | (Jnz, _, _) => todo!(),
         }
