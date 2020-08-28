@@ -316,11 +316,7 @@ impl State {
             // doubling values
             (Add, VarA, VarA) => self.a *= 2,
             (Add, VarB, VarB) => self.b *= 2,
-            (Add, VarI, VarI) => match self.ip.checked_mul(2) {
-                Some(new_ip) => self.ip = new_ip,
-                None => return Err(Halt::OutOfBounds(
-                    BigInt::from(self.ip) * 2)),
-            }
+            (Add, VarI, VarI) => self.ip *= 2, // should never overflow
             (Add, RefA, RefA) => {
                 let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
                 *ref_a *= 2;
@@ -328,6 +324,19 @@ impl State {
             (Add, RefB, RefB) => {
                 let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
                 *ref_b *= 2;
+            }
+
+            // adding `1` to things
+            (Add, VarA, One) => self.a += 1,
+            (Add, VarB, One) => self.b += 1,
+            (Add, VarI, One) => self.ip += 1,
+            (Add, RefA, One) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                *ref_a += 1;
+            }
+            (Add, RefB, One) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                *ref_b += 1;
             }
 
             // `o` is not allowed outside of assignments
