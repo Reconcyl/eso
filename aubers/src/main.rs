@@ -521,7 +521,20 @@ impl State {
                 }
             }
 
-            (Jnz, _, _) => todo!(),
+            // conditional jumps
+            (Jnz, arg1, arg2) => {
+                let do_jump = self.eval(arg2, |r| match r {
+                    EvalResult::Large(n) => !n.is_zero(),
+                    EvalResult::Small(n) => n != 0,
+                })?;
+                if do_jump {
+                    let new_ip = self.eval(arg1, |r| match r.to_usize() {
+                        Some(new_ip) => Ok(new_ip),
+                        None => Err(Halt::OutOfBounds(r.to_bigint())),
+                    })??;
+                    self.ip = new_ip;
+                }
+            }
         }
         Ok(())
     }
