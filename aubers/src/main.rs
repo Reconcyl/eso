@@ -1,5 +1,6 @@
 use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive as _;
+use num_traits::Zero as _;
 
 use std::mem;
 
@@ -162,6 +163,20 @@ impl State {
         match src {
             Reg::A => *reg_val += &self.a,
             Reg::B => *reg_val += &self.b,
+        }
+        Ok(())
+    }
+
+    /// Subtract the value of one register from the dereferenced value
+    /// of another register.
+    fn reg_to_mem_sub(&mut self, dst: Reg, src: Reg) -> Result<(), Halt> {
+        let reg_val = Self::get_mut(&mut self.tape, match dst {
+            Reg::A => &self.a,
+            Reg::B => &self.b,
+        })?;
+        match src {
+            Reg::A => *reg_val -= &self.a,
+            Reg::B => *reg_val -= &self.b,
         }
         Ok(())
     }
@@ -378,7 +393,7 @@ impl State {
                     Option2::One(ref_ab) => *ref_ab += 1,
                     Option2::Two(ref_a, ref_b) => *ref_b += &*ref_a,
                 }
-            
+
             // register-to-memory addition
             (Add, RefA, VarA) => self.reg_to_mem_add(Reg::A, Reg::A)?,
             (Add, RefA, VarB) => self.reg_to_mem_add(Reg::A, Reg::B)?,
@@ -421,7 +436,92 @@ impl State {
                 }
             }
 
-            (Sub, _, _) | (Jnz, _, _) => todo!(),
+            // deleting values
+            (Sub, VarA, VarA) => self.a.set_zero(),
+            (Sub, VarB, VarB) => self.b.set_zero(),
+            (Sub, VarI, VarI) => self.ip = 0,
+            (Sub, RefA, RefA) =>
+                Self::get_mut(&mut self.tape, &self.a)?.set_zero(),
+            (Sub, RefB, RefB) =>
+                Self::get_mut(&mut self.tape, &self.b)?.set_zero(),
+
+            // subtracting things from `a` and `b`
+            (Sub, VarA, arg) => {
+                let mut a = mem::take(&mut self.a);
+                self.eval(arg, |r| match r {
+                    EvalResult::Large(n) => a -= n,
+                    EvalResult::Small(n) => a -= n,
+                })?;
+                self.a = a;
+            }
+            (Sub, VarB, arg) => {
+                let mut b = mem::take(&mut self.b);
+                self.eval(arg, |r| match r {
+                    EvalResult::Large(n) => b -= n,
+                    EvalResult::Small(n) => b -= n,
+                })?;
+                self.b = b;
+            }
+
+            // memory-to-memory subtraction
+            (Sub, RefA, RefB) =>
+                match self.deref_regs_mut()? {
+                    Option2::One(ref_ab) => ref_ab.set_zero(),
+                    Option2::Two(ref_a, ref_b) => *ref_a -= &*ref_b,
+                }
+            (Sub, RefB, RefA) =>
+                match self.deref_regs_mut()? {
+                    Option2::One(ref_ab) => ref_ab.set_zero(),
+                    Option2::Two(ref_a, ref_b) => *ref_b -= &*ref_a,
+                }
+
+            // register-to-memory subtraction
+            (Sub, RefA, VarA) => self.reg_to_mem_sub(Reg::A, Reg::A)?,
+            (Sub, RefA, VarB) => self.reg_to_mem_sub(Reg::A, Reg::B)?,
+            (Sub, RefB, VarA) => self.reg_to_mem_sub(Reg::B, Reg::A)?,
+            (Sub, RefB, VarB) => self.reg_to_mem_sub(Reg::B, Reg::B)?,
+
+            // subtracting `1` from things
+            (Sub, VarI, One) => match self.ip.checked_sub(1) {
+                Some(ip) => self.ip = ip,
+                None => return Err(Halt::OutOfBounds(
+                    BigInt::from(self.ip) - 1))
+            }
+            (Sub, RefA, One) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                *ref_a -= 1;
+            }
+            (Sub, RefB, One) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                *ref_b -= 1;
+            }
+
+            // subtracting `i` from things
+            (Sub, RefA, VarI) => {
+                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
+                *ref_a -= self.ip;
+            }
+            (Sub, RefB, VarI) => {
+                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
+                *ref_b -= self.ip;
+            }
+
+            // subtracting things from `i`
+            (Sub, VarI, arg) => {
+                // not very efficient, but it's the simplest
+                // way to handle negatives properly
+                let mut new_ip = BigInt::from(self.ip);
+                self.eval(arg, |r| match r {
+                    EvalResult::Large(n) => new_ip -= n,
+                    EvalResult::Small(n) => new_ip -= n,
+                })?;
+                match new_ip.to_usize() {
+                    Some(new_ip) => self.ip = new_ip,
+                    None => return Err(Halt::OutOfBounds(new_ip)),
+                }
+            }
+
+            (Jnz, _, _) => todo!(),
         }
         Ok(())
     }
