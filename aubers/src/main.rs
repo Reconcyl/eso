@@ -536,6 +536,8 @@ impl State {
                 }
             }
         }
+
+        self.ip += 3;
         Ok(())
     }
 }
