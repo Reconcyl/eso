@@ -95,8 +95,8 @@ impl<I: Read, O: Write> State<I, O> {
     }
 
     /// Write a single byte to output.
-    fn write(&mut self, _b: u8) -> Result<(), Halt> {
-        todo!()
+    fn write(&mut self, b: u8) -> Result<(), Halt> {
+        self.output.write_all(&[b]).map_err(Halt::Io)
     }
 
     /// Get an element from a tape associated with a given index.
