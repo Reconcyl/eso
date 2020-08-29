@@ -10,3 +10,8 @@ pub fn assign_from_usize(a: &mut BigInt, b: usize) {
     let low = b as u32;
     a.assign_from_slice(Sign::Plus, &[low, high]);
 }
+
+pub enum Option2<T> {
+    One(T),
+    Two(T, T),
+}

@@ -4,6 +4,7 @@ use num_traits::cast::ToPrimitive as _;
 use std::mem;
 
 mod util;
+use util::Option2;
 
 /// Possible circumstances that can halt the execution
 /// of am Aubergine program.
@@ -108,7 +109,7 @@ impl State {
     /// Return `None` if the registers are equal or `Err(_)` if they are
     /// out of bounds.
     fn deref_regs_mut(&mut self)
-        -> Result<Option<(&mut BigInt, &mut BigInt)>, Halt>
+        -> Result<Option2<&mut BigInt>, Halt>
     {
         let idx_a = match self.a.to_usize() {
             Some(a) => a,
@@ -126,14 +127,14 @@ impl State {
             .ok_or(Halt::OutOfBounds(self.b.clone()))?;
 
         Ok(if std::ptr::eq(ref_a, ref_b) {
-            None
+            Option2::One(ref_b)
         } else {
             // SAFETY: we have already checked that `ref_a != ref_b`.
             unsafe {
-                Some((
+                Option2::Two(
                     ref_a.as_mut().unwrap(),
                     ref_b,
-                ))
+                )
             }
         })
     }
@@ -147,6 +148,20 @@ impl State {
         match dst {
             Reg::A => self.a.clone_from(reg_val),
             Reg::B => self.b.clone_from(reg_val),
+        }
+        Ok(())
+    }
+
+    /// Add the value of one register to the dereferenced value
+    /// of another register.
+    fn reg_to_mem_add(&mut self, dst: Reg, src: Reg) -> Result<(), Halt> {
+        let reg_val = Self::get_mut(&mut self.tape, match dst {
+            Reg::A => &self.a,
+            Reg::B => &self.b,
+        })?;
+        match src {
+            Reg::A => *reg_val += &self.a,
+            Reg::B => *reg_val += &self.b,
         }
         Ok(())
     }
@@ -226,11 +241,11 @@ impl State {
 
             // memory-to-memory assignments
             (Mov, RefA, RefB) =>
-                if let Some((ref_a, ref_b)) = self.deref_regs_mut()? {
+                if let Option2::Two(ref_a, ref_b) = self.deref_regs_mut()? {
                     ref_a.clone_from(ref_b);
                 }
             (Mov, RefB, RefA) =>
-                if let Some((ref_a, ref_b)) = self.deref_regs_mut()? {
+                if let Option2::Two(ref_a, ref_b) = self.deref_regs_mut()? {
                     ref_b.clone_from(ref_a);
                 }
 
@@ -351,6 +366,24 @@ impl State {
                 })?;
                 self.b = b;
             }
+
+            // memory-to-memory addition
+            (Add, RefA, RefB) =>
+                match self.deref_regs_mut()? {
+                    Option2::One(ref_ab) => *ref_ab += 1,
+                    Option2::Two(ref_a, ref_b) => *ref_a += &*ref_b,
+                }
+            (Add, RefB, RefA) =>
+                match self.deref_regs_mut()? {
+                    Option2::One(ref_ab) => *ref_ab += 1,
+                    Option2::Two(ref_a, ref_b) => *ref_b += &*ref_a,
+                }
+            
+            // register-to-memory addition
+            (Add, RefA, VarA) => self.reg_to_mem_add(Reg::A, Reg::A)?,
+            (Add, RefA, VarB) => self.reg_to_mem_add(Reg::A, Reg::B)?,
+            (Add, RefB, VarA) => self.reg_to_mem_add(Reg::B, Reg::A)?,
+            (Add, RefB, VarB) => self.reg_to_mem_add(Reg::B, Reg::B)?,
 
             // adding `1` to things
             (Add, VarI, One) => self.ip += 1,
