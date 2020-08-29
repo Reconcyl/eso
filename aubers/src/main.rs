@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive as _;
-use num_traits::Zero as _;
+use num_traits::{Zero as _, One as _};
 
 use std::io::{self, BufReader, Read, Write};
 use std::mem;
@@ -312,16 +312,10 @@ impl<I: Read, O: Write> State<I, O> {
             }
 
             // const assignments
-            (Mov, VarA, One) => util::assign_from_u8(&mut self.a, 1),
-            (Mov, VarB, One) => util::assign_from_u8(&mut self.b, 1),
-            (Mov, RefA, One) => {
-                let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
-                util::assign_from_u8(ref_a, 1);
-            }
-            (Mov, RefB, One) => {
-                let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
-                util::assign_from_u8(ref_b, 1);
-            }
+            (Mov, VarA, One) => self.a.set_one(),
+            (Mov, VarB, One) => self.b.set_one(),
+            (Mov, RefA, One) => Self::get_mut(&mut self.tape, &self.a)?.set_one(),
+            (Mov, RefB, One) => Self::get_mut(&mut self.tape, &self.b)?.set_one(),
 
             // assignments to `i`
             (Mov, VarI, arg) =>
