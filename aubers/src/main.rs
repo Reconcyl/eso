@@ -2,6 +2,7 @@ use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive as _;
 use num_traits::Zero as _;
 
+use std::io::{self, BufReader, Read, Write};
 use std::mem;
 
 mod util;
@@ -13,9 +14,11 @@ enum Halt {
     UnknownCmd(BigInt),
     UnknownArg(BigInt),
     OutOfBounds(BigInt),
-    NotByte(BigInt),
+    OutputNotByte(BigInt),
     AssignToOne,
     VarOLogic,
+    NoProgramFile,
+    Io(io::Error),
     End,
 }
 
@@ -29,54 +32,66 @@ enum Reg { A, B }
 enum Arg { VarA, VarB, VarI, VarO, RefA, RefB, One }
 
 /// The result of evaluating an argument.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum EvalResult<'a> {
+    Owned(BigInt),
     Large(&'a BigInt),
     Small(usize),
 }
 
 impl EvalResult<'_> {
-    fn to_bigint(self) -> BigInt {
-        match self {
+    fn to_bigint(&self) -> BigInt {
+        match *self {
+            Self::Owned(ref n) => n.clone(),
             Self::Large(n) => n.clone(),
             Self::Small(n) => n.into(),
         }
     }
 
-    fn to_usize(self) -> Option<usize> {
-        match self {
+    fn to_usize(&self) -> Option<usize> {
+        match *self {
+            Self::Owned(ref n) => n.to_usize(),
             Self::Large(n) => n.to_usize(),
             Self::Small(n) => Some(n),
         }
     }
 
-    fn to_u8(self) -> Option<u8> {
+    fn to_u8(&self) -> Option<u8> {
         self.to_usize()?.to_u8()
     }
 }
 
 /// The state of a running Aubergine program.
-struct State {
+struct State<I, O> {
     a: BigInt,
     b: BigInt,
     ip: usize,
     tape: Vec<BigInt>,
+
+    input: io::Bytes<I>,
+    output: O,
 }
 
-impl State {
+impl<I: Read, O: Write> State<I, O> {
     /// Initialize the state.
-    fn new(code: Vec<BigInt>) -> Self {
+    fn new(code: Vec<BigInt>, input: I, output: O) -> Self {
         Self {
             a: BigInt::default(),
             b: BigInt::default(),
             ip: 0,
             tape: code,
+            input: input.bytes(),
+            output,
         }
     }
 
     /// Read a single byte from input.
-    fn read(&mut self) -> Result<u8, Halt> {
-        todo!()
+    fn read(&mut self) -> Result<BigInt, Halt> {
+        match self.input.next() {
+            Some(Err(e)) => Err(Halt::Io(e)),
+            Some(Ok(b)) => Ok(BigInt::from(b)),
+            None => Ok(BigInt::from(-1)),
+        }
     }
 
     /// Write a single byte to output.
@@ -226,7 +241,7 @@ impl State {
             VarA => Ok(f(Large(&self.a))),
             VarB => Ok(f(Large(&self.b))),
             VarI => Ok(f(Small(self.ip))),
-            VarO => Ok(f(Small(self.read()? as usize))),
+            VarO => Ok(f(Owned(self.read()?))),
             RefA => Ok(f(Large(Self::get(&self.tape, &self.a)?))),
             RefB => Ok(f(Large(Self::get(&self.tape, &self.b)?))),
             One => Ok(f(Small(1))),
@@ -316,7 +331,7 @@ impl State {
             (Mov, VarO, arg) => {
                 let b = self.eval(arg, |r| match r.to_u8() {
                     Some(b) => Ok(b),
-                    None => Err(Halt::NotByte(r.to_bigint())),
+                    None => Err(Halt::OutputNotByte(r.to_bigint())),
                 })??;
                 self.write(b)?
             }
@@ -328,21 +343,21 @@ impl State {
             // assigning `o` to things
             (Mov, VarA, VarO) => {
                 let b = self.read()?;
-                util::assign_from_u8(&mut self.a, b);
+                self.a = b;
             }
             (Mov, VarB, VarO) => {
                 let b = self.read()?;
-                util::assign_from_u8(&mut self.b, b);
+                self.b = b;
             }
             (Mov, RefA, VarO) => {
                 let b = self.read()?;
                 let ref_a = Self::get_mut(&mut self.tape, &self.a)?;
-                util::assign_from_u8(ref_a, b);
+                *ref_a = b;
             }
             (Mov, RefB, VarO) => {
                 let b = self.read()?;
                 let ref_b = Self::get_mut(&mut self.tape, &self.b)?;
-                util::assign_from_u8(ref_b, b);
+                *ref_b = b;
             }
 
             // `o` is not allowed outside of assignments
@@ -368,6 +383,7 @@ impl State {
             (Add, VarA, arg) => {
                 let mut a = mem::take(&mut self.a);
                 self.eval(arg, |r| match r {
+                    EvalResult::Owned(n) => a += n,
                     EvalResult::Large(n) => a += n,
                     EvalResult::Small(n) => a += n,
                 })?;
@@ -376,6 +392,7 @@ impl State {
             (Add, VarB, arg) => {
                 let mut b = mem::take(&mut self.b);
                 self.eval(arg, |r| match r {
+                    EvalResult::Owned(n) => b += n,
                     EvalResult::Large(n) => b += n,
                     EvalResult::Small(n) => b += n,
                 })?;
@@ -427,6 +444,7 @@ impl State {
                 // way to handle negatives properly
                 let mut new_ip = BigInt::from(self.ip);
                 self.eval(arg, |r| match r {
+                    EvalResult::Owned(n) => new_ip += n,
                     EvalResult::Large(n) => new_ip += n,
                     EvalResult::Small(n) => new_ip += n,
                 })?;
@@ -449,6 +467,7 @@ impl State {
             (Sub, VarA, arg) => {
                 let mut a = mem::take(&mut self.a);
                 self.eval(arg, |r| match r {
+                    EvalResult::Owned(n) => a -= n,
                     EvalResult::Large(n) => a -= n,
                     EvalResult::Small(n) => a -= n,
                 })?;
@@ -457,6 +476,7 @@ impl State {
             (Sub, VarB, arg) => {
                 let mut b = mem::take(&mut self.b);
                 self.eval(arg, |r| match r {
+                    EvalResult::Owned(n) => b -= n,
                     EvalResult::Large(n) => b -= n,
                     EvalResult::Small(n) => b -= n,
                 })?;
@@ -512,6 +532,7 @@ impl State {
                 // way to handle negatives properly
                 let mut new_ip = BigInt::from(self.ip);
                 self.eval(arg, |r| match r {
+                    EvalResult::Owned(n) => new_ip -= n,
                     EvalResult::Large(n) => new_ip -= n,
                     EvalResult::Small(n) => new_ip -= n,
                 })?;
@@ -524,6 +545,7 @@ impl State {
             // conditional jumps
             (Jnz, arg1, arg2) => {
                 let do_jump = self.eval(arg2, |r| match r {
+                    EvalResult::Owned(n) => !n.is_zero(),
                     EvalResult::Large(n) => !n.is_zero(),
                     EvalResult::Small(n) => n != 0,
                 })?;
@@ -542,8 +564,78 @@ impl State {
     }
 }
 
+fn run() -> Result<(), Halt> {
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    let code: Vec<BigInt> =
+        if args.len() == 1 {
+            use std::fs::File;
+            let file = File::open(&args[0]).map_err(Halt::Io)?;
+            BufReader::new(file).bytes()
+                .map(|b| Ok(BigInt::from(b?)))
+                .collect::<Result<_, _>>()
+                .map_err(Halt::Io)?
+        } else if args.len() == 2 && args[0] == "-c" {
+            args[1].bytes()
+                .map(BigInt::from)
+                .collect()
+        } else {
+            return Err(Halt::NoProgramFile)
+        };
+
+    let stdin = io::stdin();
+    let stdin = stdin.lock();
+    let stdout = io::stdout();
+    let stdout = stdout.lock();
+
+    let mut state = State::new(code, stdin, stdout);
+    // halts using an error
+    loop { state.step()? }
+}
+
 fn main() {
-    let mut state = State::new(Vec::new());
-    let _ = state.step();
-    println!("Hello, world!");
+    if let Err(e) = run() {
+        std::process::exit(match e {
+            Halt::UnknownCmd(i) => {
+                match i.to_u8() {
+                    Some(b) => eprintln!("error: byte is not a valid argument: '{}'", b),
+                    None => eprintln!("error: integer is not a valid argument: {}", i),
+                }
+                2
+            }
+            Halt::UnknownArg(i) => {
+                match i.to_u8() {
+                    Some(b) => eprintln!("error: byte is not a valid argument: '{}'", b),
+                    None => eprintln!("error: integer is not a valid argument: {}", i),
+                }
+                2
+            }
+            Halt::OutOfBounds(i) => {
+                eprintln!("error: index out of bounds: {}", i);
+                2
+            }
+            Halt::OutputNotByte(i) => {
+                eprintln!("io error: value cannot be output \
+                           as it does not fit in a byte: {}", i);
+                2
+            }
+            Halt::AssignToOne => {
+                eprintln!("error: `1` is not an lvalue");
+                2
+            }
+            Halt::VarOLogic => {
+                eprintln!("error: `o` cannot be used outside of assignments");
+                2
+            }
+            Halt::NoProgramFile => {
+                eprintln!("io error: please pass a program file");
+                // TODO: print usage
+                1
+            }
+            Halt::Io(e) => {
+                eprintln!("io error: {}", e);
+                1
+            }
+            Halt::End => 0
+        })
+    }
 }
