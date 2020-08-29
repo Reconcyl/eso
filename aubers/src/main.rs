@@ -444,7 +444,7 @@ impl<I: Read, O: Write> State<I, O> {
                 })?;
                 match new_ip.to_usize() {
                     Some(new_ip) => self.ip = new_ip,
-                    None => return Err(Halt::OutOfBounds(new_ip))
+                    None => return Err(Halt::End)
                 }
             }
 
@@ -532,7 +532,7 @@ impl<I: Read, O: Write> State<I, O> {
                 })?;
                 match new_ip.to_usize() {
                     Some(new_ip) => self.ip = new_ip,
-                    None => return Err(Halt::OutOfBounds(new_ip)),
+                    None => return Err(Halt::End),
                 }
             }
 
