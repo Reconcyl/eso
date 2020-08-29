@@ -628,7 +628,6 @@ fn main() {
             }
             Halt::NoProgramFile => {
                 eprintln!("io error: please pass a program file");
-                // TODO: print usage
                 1
             }
             Halt::Io(e) => {
