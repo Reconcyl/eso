@@ -1,0 +1,357 @@
+; A brainfuck interpreter in whitespace.
+
+; Reads the program from STDIN. A `!` character marks
+; the end of the program and the start of input.
+
+; Heap layout:
+; [0]            = input character
+; [1]            = length of program (L)
+; [2 .. 2 + 2*L] = program and associated information
+; [2*L + 2 ..]   = tape
+
+; Step 1: Parse the program, using the stack to store
+; the location of matching opening brackets.
+; Specifically, we say that the *match* of a bracket
+; is a number one greater than the index of its closing
+; bracket.
+
+; stack = []
+; L = 0
+
+parse:
+    ; stack = [...]
+    ; read a character and push it to the stack
+    push 0
+    dup
+    ichr
+    get
+
+    ; stack = [..., c]; heap[0] = c
+    ; if c == '!', stop parsing
+    push 33
+    sub
+    jz end_parse
+
+    ; stack = [...]
+    ; L += 1
+    push 1
+    dup
+    get
+    push 1
+    add
+    set
+
+    ; stack = [...]
+    ; get two more copies of the character
+    push 0
+    get
+    dup
+
+    ; stack = [..., c, c]
+    ; get the appropriate heap location and assign the character there
+    push 1
+    get
+    push 2
+    mul
+    swap
+    set
+
+    ; stack = [..., c]; heap[2 * L] = c
+    ; if c == '[': goto parse_open_bracket
+    dup
+    push 91
+    sub
+    jz parse_open_bracket
+
+    ; stack = [..., c]
+    ; elif c == ']': goto parse_close_bracket
+    push 93
+    sub
+    jz parse_close_bracket
+
+    ; else: continue
+    jmp parse
+
+    parse_open_bracket:
+        ; stack = [..., c]
+        ; push L
+        pop
+        push 1
+        get
+        jmp parse
+
+    parse_close_bracket:
+        ; stack = [..., match_loc]
+        ; heap[match_loc * 2 + 1] = L
+        dup
+        push 2
+        mul
+        push 1
+        add
+        push 1
+        get
+        set
+
+        ; stack = [..., match_loc]
+        ; heap[L * 2 + 1] = match_loc
+        push 1
+        get
+        push 2
+        mul
+        push 1
+        add
+        swap
+        set
+
+        jmp parse
+
+; Parsing is finished.
+; We can now use heap cell `0` to store the data pointer.
+; We can also use the stack to store the instruction pointer.
+end_parse:
+    ; stack = []
+    ; heap[0] = push(2*L + 2)
+    push 0
+    push 1
+    dup
+    get
+    add
+    push 2
+    mul
+    set
+
+    ; stack = []
+    ; push ip
+    push 0
+
+; Step 2: Execute the program.
+
+run:
+    ; stack = [ip]
+    ; if ip == L: goto end_run
+    dup
+    push 1
+    get
+    sub
+    jz end_run
+
+    ; stack = [ip]
+    ; Increment the instruction pointer.
+    dup
+    push 1
+    add
+    swap
+
+    ; stack = [ip+1, ip]
+    ; Fetch the current character and its match.
+    push 2
+    mul
+    push 3
+    add
+    dup
+    get
+    swap
+    push 1
+    sub
+    get
+
+    ; stack = [ip+1, m, c]
+    ; if c == '[': goto run_open_bracket
+    dup
+    push 91
+    sub
+    jz run_open_bracket
+
+    ; stack = [ip+1, m, c]
+    ; if c == ']': goto run_close_bracket
+    dup
+    push 93
+    sub
+    jz run_close_bracket
+
+    ; stack = [ip+1, m, c]
+    ; no other instruction depends on `m`
+    swap
+    pop
+
+    ; stack = [ip+1, c]
+    ; if c == '+': goto run_plus
+    dup
+    push 43
+    sub
+    jz run_plus
+
+    ; stack = [ip+1, c]
+    ; if c == '-': goto run_minus
+    dup
+    push 45
+    sub
+    jz run_minus
+
+    ; stack = [ip+1, c]
+    ; if c == '<': goto run_left
+    dup
+    push 60
+    sub
+    jz run_left
+
+    ; stack = [ip+1, c]
+    ; if c == '>': goto run_right
+    dup
+    push 62
+    sub
+    jz run_right
+
+    ; stack = [ip+1, c]
+    ; if c == ',': goto run_input
+    dup
+    push 44
+    sub
+    jz run_input
+
+    ; stack = [ip+1, c]
+    ; if c == '.': goto run_output
+    dup
+    push 46
+    sub
+    jz run_output
+
+    ; stack = [ip+1, c]
+    ; do nothing with `c`
+    jmp pop_and_jmp_run
+
+    run_open_bracket:
+        pop
+
+        ; stack = [ip+1, m]
+        ; if -heap_dp < 0: goto pop_and_jmp_run
+        push 0
+        get
+        get
+        push -1
+        mul
+        jn pop_and_jmp_run
+        
+        ; stack = [ip+1, m]
+        ; set `m` as the new ip
+        swap
+        jmp pop_and_jmp_run
+
+    run_close_bracket:
+        pop
+
+        ; stack = [ip+1, m]
+        ; if heap[dp] == 0: goto run_close_bracket_nojmp
+        push 0
+        get
+        get
+        jz pop_and_jmp_run
+
+        ; stack = [ip+1, m]
+        ; set `m` as the new ip
+        swap
+        jmp pop_and_jmp_run
+
+    run_plus:
+        ; stack = [ip+1, c]
+        ; heap[dp] = (heap[dp] + 1) % 256
+        push 0
+        get
+        dup
+        get
+        push 1
+        add
+        push 256
+        mod
+        set
+
+        ; stack = [ip+1, c]
+        ; do nothing with `c`
+        jmp pop_and_jmp_run
+
+    run_minus:
+        ; stack = [ip+1, c]
+        ; heap[dp] = (heap[dp] + 255) % 256
+        push 0
+        get
+        dup
+        get
+        push 255
+        add
+        push 256
+        mod
+        set
+
+        ; stack = [ip+1, c]
+        ; do nothing with `c`
+        jmp pop_and_jmp_run
+
+    run_left:
+        ; stack = [ip+1, c]
+        ; if dp < 2*L + 3: goto pop_and_jmp_run
+        push 0
+        get
+        push 1
+        get
+        push 2
+        mul
+        push 3
+        add
+        sub
+        jn pop_and_jmp_run
+
+        ; stack = [ip+1, c]
+        ; dp = dp - 1
+        push 0
+        dup
+        get
+        push 1
+        sub
+        set
+
+        jmp pop_and_jmp_run
+
+    run_right:
+        ; stack = [ip+1, c]
+        ; dp = dp + 1
+        push 0
+        dup
+        get
+        push 1
+        add
+        set
+
+        ; stack = [ip+1, c]
+        ; do nothing with `c`
+        jmp pop_and_jmp_run
+
+    run_input:
+        ; stack = [ip+1, c]
+        ; read a character and write it to dp
+        push 0
+        get
+        ichr
+
+        ; stack = [ip+1, c]
+        ; do nothing with `c`
+        jmp pop_and_jmp_run
+
+    run_output:
+        ; stack = [ip+1, c]
+        ; write heap[dp] as a character
+        push 0
+        get
+        get
+        pchr
+
+        ; stack = [ip+1, c]
+        ; do nothing with `c`
+
+    pop_and_jmp_run:
+        pop
+        jmp run
+
+end_run:
+    ; stack = [ip]
+    ; clean up the stack.
+    pop
