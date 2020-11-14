@@ -1,4 +1,4 @@
-pub use crate::bytecode::{Bytecode, ins};
+pub use crate::bytecode::{Bytecode, Opcode};
 pub use crate::value::{Char, Value, FromValue, ScalarToInt, NumToReal};
 
 pub struct Runtime {
@@ -20,12 +20,17 @@ impl Runtime {
 
     pub fn run(&mut self, bc: &Bytecode) {
         for &b in &bc.bytes {
-            match b {
-                ins::NOT => {
+            use Opcode::*;
+            let op = match Opcode::from_byte(b) {
+                Some(op) => op,
+                None => panic!("0x{:02x} is not a valid opcode", b),
+            };
+            match op {
+                Not => {
                     let a = self.pop();
                     self.push(!a.truthiness().unwrap() as i64)
                 }
-                ins::PLUS => {
+                Plus => {
                     let a = self.pop();
                     let b = self.pop();
                     binary_match!((a, b) {
@@ -58,12 +63,11 @@ impl Runtime {
                             },
                     });
                 }
-                ins::ONE => self.push(1),
-                ins::LOWER_A => {
+                One => self.push(1),
+                LowerA => {
                     let a = self.pop();
                     self.push(vec![a]);
                 }
-                b => panic!("invalid byte: 0x{:x}", b),
             }
         }
     }
