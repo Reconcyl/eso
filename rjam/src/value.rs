@@ -126,6 +126,19 @@ impl FromValue for f64 {
     }
 }
 
+impl FromValue for Vec<Value> {
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Array(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Array(a) => Some(a),
+            _ => None,
+        }
+    }
+}
+
 /// Matches any scalar (char/numeric) type and converts it to an integer.
 pub struct ScalarToInt(pub i64);
 

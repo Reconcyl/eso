@@ -25,12 +25,33 @@ impl Runtime {
                     let a: Value = self.pop();
                     let b: Value = self.pop();
                     binary_match!((a, b) {
-                        (a: Char, b: Char) =>
+                        (a: Char, b: Char) => // char char +
                             self.push(vec![a.into(), b.into()]),
-                        [a: Char, b: ScalarToInt] =>
+                        [a: Char, b: ScalarToInt] => // char num +, num char +
                             self.push(Char(a.0.wrapping_add(b.0 as u32))),
-                        (a: i64, b: i64) => self.push(a + b),
-                        [a: f64, b: NumToReal] => self.push(a + b.0),
+                        (a: i64, b: i64) => // int int +
+                            self.push(a + b),
+                        [a: f64, b: NumToReal] => // int num +, num int +
+                            self.push(a + b.0),
+                        (a: Vec<Value>, b: Vec<Value>) => // arr arr +
+                            {
+                                let mut a = a;
+                                let mut b = b;
+                                a.append(&mut b);
+                                self.push(a);
+                            },
+                        (a: Value, b: Vec<Value>) => // any arr +
+                            {
+                                let mut b = b;
+                                b.insert(0, a);
+                                self.push(b);
+                            },
+                        (a: Vec<Value>, b: Value) => // arr any +
+                            {
+                                let mut a = a;
+                                a.push(b);
+                                self.push(a);
+                            },
                     });
                 }
                 ins::ONE => self.push(1),
