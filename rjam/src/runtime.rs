@@ -24,17 +24,24 @@ impl Runtime {
             use Opcode::*;
             let op = match Opcode::from_byte(b) {
                 Some(op) => op,
-                None => panic!("0x{:02x} is not a valid opcode", b),
+                None => unreachable!("0x{:02x} is not a valid opcode", b),
             };
             match op {
                 Lit => {
                     self.push(bc.consts[const_idx].clone());
                     const_idx += 1;
                 }
+                One => self.push(1),
+
                 Not => {
                     let a = self.pop();
                     self.push(!a.truthiness().unwrap() as i64)
                 }
+                LowerA => {
+                    let a = self.pop();
+                    self.push(vec![a]);
+                }
+
                 Plus => {
                     let b = self.pop();
                     let a = self.pop();
@@ -67,11 +74,6 @@ impl Runtime {
                                 self.push(a);
                             },
                     });
-                }
-                One => self.push(1),
-                LowerA => {
-                    let a = self.pop();
-                    self.push(vec![a]);
                 }
             }
         }

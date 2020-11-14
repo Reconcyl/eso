@@ -26,9 +26,14 @@ macro_rules! opcodes {
 }
 
 opcodes!(pub Opcode {
+    // Miscellaneous/nullary opreators
     Lit    = 0x00,
-    Not    = 0x01,
-    Plus   = 0x02,
-    One    = 0x03,
-    LowerA = 0x04,
+    One    = 0x01,
+
+    // Unary operators
+    Not    = 0x40,
+    LowerA = 0x41,
+
+    // Binary operators
+    Plus   = 0x80,
 });
