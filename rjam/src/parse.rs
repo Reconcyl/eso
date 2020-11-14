@@ -15,6 +15,7 @@ pub enum Error {
 pub enum Expect {
     Instr,
     StrLiteral,
+    CharLiteral,
 }
 
 /// A description of a particular malformed construct that the parser
@@ -114,6 +115,10 @@ impl ParseState<'_> {
             b'"' => {
                 let val = self.next_str()?;
                 self.add_lit(val);
+            }
+            b'\'' => {
+                let c = self.next_char(Expect::CharLiteral)?;
+                self.add_lit(c.into());
             }
             b'+' => self.add_opcode(Plus),
             b'1' => self.add_opcode(One),
