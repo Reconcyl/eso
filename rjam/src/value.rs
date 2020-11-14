@@ -30,7 +30,7 @@ impl Value {
             Value::Char(c) => Some(c.0 > 0),
             Value::Int(i) => Some(i != 0),
             Value::Real(x) => Some(x != 0.0),
-            Value::Array(ref a) => Some(a.len() > 0),
+            Value::Array(ref a) => Some(!a.is_empty()),
             Value::Block(_) => None,
         }
     }
