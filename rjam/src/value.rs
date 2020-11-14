@@ -9,7 +9,7 @@ use crate::bytecode::Bytecode;
 pub struct Char(pub u32);
 
 impl Char {
-    pub fn to_char(self) -> char {
+    pub fn to_std_char(self) -> char {
         std::char::from_u32(self.0)
             .unwrap_or(std::char::REPLACEMENT_CHARACTER)
     }
@@ -42,27 +42,39 @@ impl Value {
         }
     }
 
-    pub fn is_string(&self) -> bool {
-        match *self {
-            Value::Array(ref vs) => vs.iter().all(Value::is_char),
-            _ => false,
-        }
-    }
-
     pub fn repr(&self, s: &mut String) {
         match self {
-            Value::Char(c) => { s.push('\''); s.push(c.to_char()) }
+            Value::Char(c) => { s.push('\''); s.push(c.to_std_char()) }
             Value::Int(i) => { write!(s, "{}", i).unwrap() }
             Value::Real(f) => { write!(s, "{:.}", f).unwrap() }
             Value::Array(a) => {
-                s.push('[');
-                for (i, v) in a.iter().enumerate() {
-                    if i != 0 {
-                        s.push(' ');
+                // is this array a string?
+                if a.iter().all(Value::is_char) {
+                    s.push('"');
+                    for c in a {
+                        if let Value::Char(c) = c {
+                            let c = c.to_std_char();
+                            // TODO: CJam doesn't put these where they
+                            // aren't necessary, so we shouldn't either
+                            if c == '\\' || c == '"' {
+                                s.push('\\');
+                            }
+                            s.push(c);
+                        } else {
+                            unreachable!()
+                        }
                     }
-                    v.repr(s);
+                    s.push('"');
+                } else {
+                    s.push('[');
+                    for (i, v) in a.iter().enumerate() {
+                        if i != 0 {
+                            s.push(' ');
+                        }
+                        v.repr(s);
+                    }
+                    s.push(']');
                 }
-                s.push(']');
             }
             Value::Block(_) => s.push_str("{...}"), // TODO visualize this better
         }
