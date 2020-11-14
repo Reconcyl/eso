@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Bytecode {
     pub bytes: Vec<u8>,
 }

@@ -1,6 +1,7 @@
 mod bytecode;
 mod parse;
 mod runtime;
+mod value;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
