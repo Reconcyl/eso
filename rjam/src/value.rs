@@ -70,6 +70,12 @@ impl Into<Value> for i64 {
     }
 }
 
+impl Into<Value> for f64 {
+    fn into(self) -> Value {
+        Value::Real(self)
+    }
+}
+
 impl Into<Value> for Vec<Value> {
     fn into(self) -> Value {
         Value::Array(self)
@@ -102,6 +108,54 @@ impl FromValue for i64 {
     fn from_value(v: Value) -> Option<Self> {
         match v {
             Value::Int(i) => Some(i),
+            _ => None,
+        }
+    }
+}
+
+impl FromValue for f64 {
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Real(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Real(x) => Some(x),
+            _ => None,
+        }
+    }
+}
+
+/// Matches any scalar (char/numeric) type and converts it to an integer.
+pub struct ScalarToInt(pub i64);
+
+impl FromValue for ScalarToInt {
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Char(_) | Value::Int(_) | Value::Real(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Char(c) => Some(Self(c.0 as i64)),
+            Value::Int(i) => Some(Self(i)),
+            Value::Real(x) => Some(Self(x as i64)),
+            _ => None,
+        }
+    }
+}
+
+/// Matches any numeric type and converts it to a float.
+pub struct NumToReal(pub f64);
+
+impl FromValue for NumToReal {
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Int(_) | Value::Real(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Int(i) => Some(Self(i as f64)),
+            Value::Real(x) => Some(Self(x)),
             _ => None,
         }
     }
