@@ -35,5 +35,6 @@ opcodes!(pub Opcode {
     LowerA = 0x41,
 
     // Binary operators
-    Plus   = 0x80,
+    Hash   = 0x80,
+    Plus   = 0x81,
 });

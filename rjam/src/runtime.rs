@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 pub use crate::bytecode::{Bytecode, Opcode};
 pub use crate::value::{Char, Value, FromValue, ScalarToInt, NumToReal};
 
@@ -42,6 +44,28 @@ impl Runtime {
                     self.push(vec![a]);
                 }
 
+                Hash => {
+                    let b = self.pop();
+                    let a = self.pop();
+                    binary_match!((a, b) {
+                        (a: i64, b: i64) => // int int #
+                            if let Ok(pow) = u32::try_from(b) {
+                                self.push(a.wrapping_pow(pow));
+                            } else if let Ok(pow) = i32::try_from(b) {
+                                self.push((a as f64).powi(pow));
+                            } else {
+                                self.push((a as f64).powf(b as f64));
+                            },
+                        (a: f64, b: i64) => // real int #
+                            if let Ok(pow) = i32::try_from(b) {
+                                self.push((a as f64).powi(pow))
+                            } else {
+                                self.push(a.powf(b as f64))
+                            },
+                        (a: NumToReal, b: f64) => // num real #
+                            self.push(a.0.powf(b)),
+                    });
+                }
                 Plus => {
                     let b = self.pop();
                     let a = self.pop();
@@ -51,7 +75,7 @@ impl Runtime {
                         [a: Char, b: ScalarToInt] => // char num +, num char +
                             self.push(Char(a.0.wrapping_add(b.0 as u32))),
                         (a: i64, b: i64) => // int int +
-                            self.push(a + b),
+                            self.push(a.wrapping_add(b)),
                         [a: f64, b: NumToReal] => // int num +, num int +
                             self.push(a + b.0),
                         (a: Vec<Value>, b: Vec<Value>) => // arr arr +

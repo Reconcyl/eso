@@ -116,6 +116,7 @@ impl ParseState<'_> {
                 let val = self.next_str()?;
                 self.add_lit(val);
             }
+            b'#' => self.add_opcode(Hash),
             b'\'' => {
                 let c = self.next_char(Expect::CharLiteral)?;
                 self.add_lit(c.into());
