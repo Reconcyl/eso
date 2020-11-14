@@ -1,4 +1,4 @@
-pub use crate::parse::Bytecode;
+pub use crate::bytecode::{Bytecode, ins};
 
 pub struct Runtime;
 
@@ -7,9 +7,9 @@ impl Runtime {
         Runtime
     }
     pub fn run(&mut self, bc: &Bytecode) {
-        for &b in bc {
+        for &b in &bc.bytes {
             match b {
-                0x00 => println!("Hello, World!"),
+                ins::HELLO_WORLD => println!("Hello, World!"),
                 b => panic!("invalid byte: 0x{:x}", b),
             }
         }

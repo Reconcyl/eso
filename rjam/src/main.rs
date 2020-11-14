@@ -1,3 +1,4 @@
+mod bytecode;
 mod parse;
 mod runtime;
 

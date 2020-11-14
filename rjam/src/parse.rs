@@ -1,14 +1,15 @@
-pub type Bytecode = Vec<u8>;
+use crate::bytecode::{Bytecode, ins};
+
 pub type Error = ();
 
 /// Parse the given program into bytecode form.
 pub fn parse(code: &[u8]) -> Result<Bytecode, Error> {
-    let mut bc = Bytecode::new();
+    let mut bytes = Vec::new();
     for byte in code {
         match byte {
-            b'h' => bc.push(0x00),
+            b'h' => bytes.push(ins::HELLO_WORLD),
             _ => return Err(()),
         }
     }
-    Ok(bc)
+    Ok(Bytecode { bytes })
 }
