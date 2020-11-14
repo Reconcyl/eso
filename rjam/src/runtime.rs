@@ -25,6 +25,7 @@ impl Runtime {
                     let a: Value = self.pop();
                     let b: Value = self.pop();
                     binary_match!((a, b) {
+                        (a: Char, b: Char) => self.push(vec![a.into(), b.into()]),
                         (a: i64, b: i64) => self.push(a + b),
                     });
                 }

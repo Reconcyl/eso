@@ -70,6 +70,12 @@ impl Into<Value> for i64 {
     }
 }
 
+impl Into<Value> for Vec<Value> {
+    fn into(self) -> Value {
+        Value::Array(self)
+    }
+}
+
 pub trait FromValue: Sized {
     fn matches(value: &Value) -> bool;
     fn from_value(value: Value) -> Option<Self>;
@@ -113,12 +119,13 @@ impl FromValue for Value {
 
 /// Attempt to downcast a pair of values to the provided types.
 pub fn try_downcast_2<T: FromValue, U: FromValue>(a: Value, b: Value)
-    -> Option<(T, U)>
+    -> Result<(T, U), (Value, Value)>
 {
     if T::matches(&a) && U::matches(&b) {
         T::from_value(a).zip(U::from_value(b))
+            .ok_or_else(|| panic!("invalid `matches()` method"))
     } else {
-        None
+        Err((a, b))
     }
 }
 
@@ -136,13 +143,10 @@ macro_rules! binary_match {
         ($a:ident : $T:ty, $b:ident : $U:ty) => $e:expr,
         $($rest:tt)*
     }) => {{
-        // to avoid re-evaluation
-        let scrut_a = $scrut_a;
-        let scrut_b = $scrut_b;
         // do the types match?
-        match crate::value::try_downcast_2::<$T, $U>(scrut_a, scrut_b) {
-            Some(($a, $b)) => $e,
-            None => binary_match!((scrut_a, scrut_b) { $($rest)* })
+        match crate::value::try_downcast_2::<$T, $U>($scrut_a, $scrut_b) {
+            Ok(($a, $b)) => $e,
+            Err((_a, _b)) => binary_match!((_a, _b) { $($rest)* })
         }
     }};
 
