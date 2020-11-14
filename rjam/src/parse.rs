@@ -7,7 +7,8 @@ pub fn parse(code: &[u8]) -> Result<Bytecode, Error> {
     let mut bytes = Vec::new();
     for byte in code {
         match byte {
-            b'h' => bytes.push(ins::HELLO_WORLD),
+            b'+' => bytes.push(ins::PLUS),
+            b'1' => bytes.push(ins::ONE),
             _ => return Err(()),
         }
     }

@@ -3,5 +3,6 @@ pub struct Bytecode {
 }
 
 pub mod ins {
-    pub const HELLO_WORLD: u8 = 0x00;
+    pub const PLUS: u8 = 0x00;
+    pub const ONE: u8 = 0x01;
 }

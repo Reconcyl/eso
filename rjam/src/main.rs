@@ -14,4 +14,5 @@ fn main() {
     };
     let mut runtime = runtime::Runtime::new();
     runtime.run(&bytecode);
+    runtime.print_stack();
 }
