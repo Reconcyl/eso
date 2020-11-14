@@ -21,9 +21,13 @@ impl Runtime {
     pub fn run(&mut self, bc: &Bytecode) {
         for &b in &bc.bytes {
             match b {
+                ins::NOT => {
+                    let a = self.pop();
+                    self.push(!a.truthiness().unwrap() as i64)
+                }
                 ins::PLUS => {
-                    let a: Value = self.pop();
-                    let b: Value = self.pop();
+                    let a = self.pop();
+                    let b = self.pop();
                     binary_match!((a, b) {
                         (a: Char, b: Char) => // char char +
                             self.push(vec![a.into(), b.into()]),
@@ -55,6 +59,10 @@ impl Runtime {
                     });
                 }
                 ins::ONE => self.push(1),
+                ins::LOWER_A => {
+                    let a = self.pop();
+                    self.push(vec![a]);
+                }
                 b => panic!("invalid byte: 0x{:x}", b),
             }
         }
