@@ -1,5 +1,5 @@
 pub use crate::bytecode::{Bytecode, ins};
-pub use crate::value::{Value, FromValue};
+pub use crate::value::{Char, Value, FromValue};
 
 pub struct Runtime {
     stack: Vec<Value>,
@@ -14,17 +14,19 @@ impl Runtime {
         Runtime { stack: Vec::new() }
     }
 
-    pub fn pop<T: for<'a> FromValue<'a>>(&mut self) -> T {
-        T::from_value(&self.stack.pop().unwrap()).unwrap()
+    pub fn pop(&mut self) -> Value {
+        self.stack.pop().unwrap()
     }
 
     pub fn run(&mut self, bc: &Bytecode) {
         for &b in &bc.bytes {
             match b {
                 ins::PLUS => {
-                    let a: i64 = self.pop();
-                    let b: i64 = self.pop();
-                    self.push(a + b);
+                    let a: Value = self.pop();
+                    let b: Value = self.pop();
+                    binary_match!((a, b) {
+                        (a: i64, b: i64) => self.push(a + b),
+                    });
                 }
                 ins::ONE => self.push(1),
                 b => panic!("invalid byte: 0x{:x}", b),
@@ -33,8 +35,11 @@ impl Runtime {
     }
 
     pub fn print_stack(&self) {
-        for (i, n) in self.stack.iter().enumerate() {
-            print!("{}{:?}", if i == 0 { "" } else { " " }, n);
+        let mut s = String::new();
+        for (i, v) in self.stack.iter().enumerate() {
+            v.repr(&mut s);
+            print!("{}{}", if i == 0 { "" } else { " " }, s);
+            s.clear();
         }
         println!();
     }
