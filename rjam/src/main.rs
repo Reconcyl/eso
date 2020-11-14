@@ -1,4 +1,5 @@
 mod parse;
+mod runtime;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -6,8 +7,10 @@ fn main() {
         eprintln!("Please pass the program as an argument.");
         return;
     }
-    match parse::parse(args[1].as_bytes()) {
-        Ok(bytecode) => println!("Parsed: {:?}", bytecode),
-        Err(e) => eprintln!("Failed to parse: {:?}", e),
-    }
+    let bytecode = match parse::parse(args[1].as_bytes()) {
+        Err(e) => { eprintln!("Failed to parse: {:?}", e); return }
+        Ok(bytecode) => bytecode
+    };
+    let mut runtime = runtime::Runtime::new();
+    runtime.run(&bytecode);
 }
