@@ -19,6 +19,7 @@ impl Runtime {
     }
 
     pub fn run(&mut self, bc: &Bytecode) {
+        let mut const_idx = 0;
         for &b in &bc.bytes {
             use Opcode::*;
             let op = match Opcode::from_byte(b) {
@@ -26,13 +27,17 @@ impl Runtime {
                 None => panic!("0x{:02x} is not a valid opcode", b),
             };
             match op {
+                Lit => {
+                    self.push(bc.consts[const_idx].clone());
+                    const_idx += 1;
+                }
                 Not => {
                     let a = self.pop();
                     self.push(!a.truthiness().unwrap() as i64)
                 }
                 Plus => {
-                    let a = self.pop();
                     let b = self.pop();
+                    let a = self.pop();
                     binary_match!((a, b) {
                         (a: Char, b: Char) => // char char +
                             self.push(vec![a.into(), b.into()]),

@@ -15,6 +15,7 @@ impl Char {
     }
 }
 
+#[derive(Clone)]
 pub enum Value {
     Char(Char),
     Int(i64), // TODO: use bigint
@@ -65,6 +66,12 @@ impl Value {
             }
             Value::Block(_) => s.push_str("{...}"), // TODO visualize this better
         }
+    }
+}
+
+impl Into<Value> for char {
+    fn into(self) -> Value {
+        Value::Char(Char(self as u32))
     }
 }
 

@@ -1,5 +1,8 @@
+use crate::value::Value;
+
 pub struct Bytecode {
     pub bytes: Vec<u8>,
+    pub consts: Vec<Value>,
 }
 
 macro_rules! opcodes {
@@ -23,8 +26,9 @@ macro_rules! opcodes {
 }
 
 opcodes!(pub Opcode {
-    Not    = 0x00,
-    Plus   = 0x01,
-    One    = 0x02,
-    LowerA = 0x03,
+    Lit    = 0x00,
+    Not    = 0x01,
+    Plus   = 0x02,
+    One    = 0x03,
+    LowerA = 0x04,
 });
