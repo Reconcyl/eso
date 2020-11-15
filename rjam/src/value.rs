@@ -15,13 +15,31 @@ impl Char {
     }
 }
 
+pub type Block = Rc<Bytecode>;
+
 #[derive(Clone)]
 pub enum Value {
     Char(Char),
     Int(i64), // TODO: use bigint
     Real(f64),
     Array(Vec<Value>), // TODO: use im::Vector
-    Block(Rc<Bytecode>),
+    Block(Block),
+}
+
+impl Value {
+    /// A very strict version of equality used by the `#` operator.
+    pub fn find_eq(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Self::Char(a), Self::Char(b)) => a.0 == b.0,
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::Real(a), Self::Real(b)) => a == b,
+            (Self::Array(a), Self::Array(b)) =>
+                a.len() == b.len()
+                && a.iter().zip(b).all(|(ai, bi)| ai.find_eq(bi)),
+            (Self::Block(a), Self::Block(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
 }
 
 impl Value {
@@ -168,7 +186,43 @@ impl FromValue for Vec<Value> {
     }
 }
 
-/// Matches any scalar (char/numeric) type and converts it to an integer.
+impl FromValue for Block {
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Block(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Block(b) => Some(b),
+            _ => None,
+        }
+    }
+}
+
+impl FromValue for Value {
+    fn matches(_: &Value) -> bool {
+        true
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        Some(v)
+    }
+}
+
+/// Matches any scalar (char/numeric) type.
+pub struct Scalar(pub Value);
+
+impl FromValue for Scalar {
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Char(_) | Value::Int(_) | Value::Real(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        Some(v).filter(Self::matches).map(Self)
+    }
+}
+
+/// Matches any scalar type and converts it to an integer.
 pub struct ScalarToInt(pub i64);
 
 impl FromValue for ScalarToInt {
@@ -200,16 +254,6 @@ impl FromValue for NumToReal {
             Value::Real(x) => Some(Self(x)),
             _ => None,
         }
-    }
-}
-
-impl FromValue for Value {
-    fn matches(_: &Value) -> bool {
-        true
-    }
-
-    fn from_value(v: Value) -> Option<Self> {
-        Some(v)
     }
 }
 

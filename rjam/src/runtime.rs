@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 pub use crate::bytecode::{Bytecode, Opcode};
-pub use crate::value::{Char, Value, FromValue, ScalarToInt, NumToReal};
+pub use crate::value::{Char, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
 
 pub struct Runtime {
     stack: Vec<Value>,
@@ -33,12 +33,14 @@ impl Runtime {
                     self.push(bc.consts[const_idx].clone());
                     const_idx += 1;
                 }
+
                 One => self.push(1),
 
                 Not => {
                     let a = self.pop();
                     self.push(!a.truthiness().unwrap() as i64)
                 }
+
                 LowerA => {
                     let a = self.pop();
                     self.push(vec![a]);
@@ -64,8 +66,42 @@ impl Runtime {
                             },
                         (a: NumToReal, b: f64) => // num real #
                             self.push(a.0.powf(b)),
+                        [a: Scalar, b: Vec<Value>] => // scalar array #, array scalar #
+                            match b.iter().position(|e| e.find_eq(&a.0)) {
+                                Some(i) => self.push(i as i64),
+                                None => self.push(-1),
+                            },
+                        (a: Vec<Value>, b: Vec<Value>) => // array array #
+                            {
+                                let al = a.len();
+                                let bl = b.len();
+                                let idx = if bl > al {
+                                    None
+                                } else {
+                                    (0 .. 1 + al - bl).find(|&i|
+                                        a[i..].iter()
+                                            .zip(&b[i..])
+                                            .all(|(ai, bi)| ai.find_eq(bi)))
+                                };
+                                match idx {
+                                    Some(i) => self.push(i as i64),
+                                    None => self.push(-1),
+                                }
+                            },
+                        [a: Vec<Value>, b: Block] => // array block #, block array #
+                            match a.into_iter()
+                                .position(|elem| {
+                                    self.push(elem);
+                                    self.run(&b);
+                                    self.pop().truthiness().unwrap()
+                                })
+                            {
+                                Some(i) => self.push(i as i64),
+                                None => self.push(-1),
+                            },
                     });
                 }
+
                 Plus => {
                     let b = self.pop();
                     let a = self.pop();
