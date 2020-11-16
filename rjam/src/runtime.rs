@@ -283,6 +283,8 @@ impl Runtime {
             print!("{}{}", if i == 0 { "" } else { " " }, s);
             s.clear();
         }
-        println!();
+        if !self.stack.is_empty() {
+            println!();
+        }
     }
 }
