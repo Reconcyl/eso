@@ -158,6 +158,7 @@ impl ParseState<'_> {
             }
             b'#' => self.add_opcode(Hash),
             b'$' => self.add_opcode(Dollar),
+            b'%' => self.add_opcode(Percent),
             b'\'' => {
                 let c = self.next_char(Expect::CharLiteral)?;
                 self.add_lit(c.into());

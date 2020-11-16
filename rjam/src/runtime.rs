@@ -10,6 +10,7 @@ pub enum Error {
     PopEmpty,
     PickEmpty,
     NoBlockTruthiness,
+    ModByZero,
     Type {
         ex: &'static str,
         got: &'static str,
@@ -37,6 +38,8 @@ impl fmt::Display for Error {
                 write!(f, "attempted to pick from empty stack"),
             Self::NoBlockTruthiness =>
                 write!(f, "attempted to cast block to bool"),
+            Self::ModByZero =>
+                write!(f, "% by zero"),
             Self::Type { ex, got, op } =>
                 write!(f, "`{}` expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
@@ -112,8 +115,8 @@ impl Runtime {
 
             Dollar => {
                 match self.pop()? {
-                    Value::Int(i) => self.copy_elem(i)?,
-                    Value::Real(x) => self.copy_elem(x as i64)?,
+                    Value::Int(i) => self.copy_elem(!i)?,
+                    Value::Real(x) => self.copy_elem(!(x as i64))?,
                     Value::Array(mut a) => {
                         a.sort();
                         self.push(a);
@@ -150,6 +153,21 @@ impl Runtime {
                         got: v.type_name(),
                     }),
                 }
+            }
+
+            Percent => {
+                let b = self.pop()?;
+                let a = self.pop()?;
+                binary_match!((a, b) {
+                    (a: i64, b: i64) => // int int %
+                        if b == 0 {
+                            return Err(Error::ModByZero);
+                        } else {
+                            self.push(a % b);
+                        },
+                    (a: NumToReal, b: NumToReal) => // int num %
+                        self.push(a.0 % b.0),
+                })
             }
 
             LowerA => {

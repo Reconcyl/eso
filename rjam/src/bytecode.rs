@@ -27,8 +27,8 @@ macro_rules! opcodes {
 
 opcodes!(pub Opcode {
     // Miscellaneous/nullary opreators
-    Lit    = 0x00,
-    One    = 0x01,
+    Lit = 0x00,
+    One = 0x01,
 
     // Unary operators
     Excl   = 0x40,
@@ -36,6 +36,7 @@ opcodes!(pub Opcode {
     LowerA = 0x42,
 
     // Binary operators
-    Hash   = 0x80,
-    Plus   = 0x81,
+    Hash    = 0x80,
+    Percent = 0x81,
+    Plus    = 0x82,
 });
