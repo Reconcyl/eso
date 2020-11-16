@@ -82,170 +82,177 @@ impl Runtime {
     }
 
     pub fn run(&mut self, bc: &Bytecode) -> Result<(), Error> {
-        let mut const_idx = 0;
+        let mut consts = bc.consts.iter();
         for &b in &bc.bytes {
-            use Opcode::*;
-            let op = match Opcode::from_byte(b) {
-                Some(op) => op,
+            match Opcode::from_byte(b) {
+                Some(op) => self.run_opcode(op, &mut consts)?,
                 None => return Err(Error::BadOpcode(b)),
             };
-            match op {
-                Lit => {
-                    self.push(bc.consts[const_idx].clone());
-                    const_idx += 1;
-                }
+        }
+        Ok(())
+    }
 
-                One => self.push(1),
+    fn run_opcode<'a>(
+        &mut self,
+        op: Opcode,
+        consts: &mut impl Iterator<Item=&'a Value>,
+    ) -> Result<(), Error> {
+        use Opcode::*;
+        match op {
+            Lit => {
+                self.push(consts.next().unwrap().clone());
+            }
 
-                Excl => {
-                    let a = self.pop()?;
-                    self.push(!a.truthiness().unwrap() as i64);
-                }
+            One => self.push(1),
 
-                Dollar => {
-                    match self.pop()? {
-                        Value::Int(i) => self.copy_elem(i)?,
-                        Value::Real(x) => self.copy_elem(x as i64)?,
-                        Value::Array(mut a) => {
-                            a.sort();
-                            self.push(a);
-                        }
-                        Value::Block(b) => {
-                            // this algorithm is mostly borrowed from
-                            // `<&mut [T]>::sort_by_cached_key()`
-                            let mut a = self.pop_typed::<Array>("$")?;
-                            // evaluate the block for each element in the array
-                            let mut indices = a.iter().enumerate()
-                                .map(|(i, e)| {
-                                    self.push(e.clone());
-                                    self.run(&b)?; // TODO attach context information
-                                    Ok((self.pop()?, i))
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
-                            // sort the indices to get the correct permutation
-                            // (stability isn't relevant because the second
-                            // elements of the tuple are always distinct)
-                            indices.sort_unstable();
-                            // move elements in `a` according to this permutation
-                            for i in 0..a.len() {
-                                let mut j = indices[i].1;
-                                while j < i {
-                                    j = indices[j].1;
-                                }
-                                indices[i].1 = j;
-                                a.swap(i, j);
-                            }
-                            self.push(a);
-                        }
-                        v => return Err(Error::NotHandled1 {
-                            op: "$",
-                            got: v.type_name(),
-                        }),
+            Excl => {
+                let a = self.pop()?;
+                self.push(!a.truthiness().unwrap() as i64);
+            }
+
+            Dollar => {
+                match self.pop()? {
+                    Value::Int(i) => self.copy_elem(i)?,
+                    Value::Real(x) => self.copy_elem(x as i64)?,
+                    Value::Array(mut a) => {
+                        a.sort();
+                        self.push(a);
                     }
+                    Value::Block(b) => {
+                        // this algorithm is mostly borrowed from
+                        // `<&mut [T]>::sort_by_cached_key()`
+                        let mut a = self.pop_typed::<Array>("$")?;
+                        // evaluate the block for each element in the array
+                        let mut indices = a.iter().enumerate()
+                            .map(|(i, e)| {
+                                self.push(e.clone());
+                                self.run(&b)?; // TODO attach context information
+                                Ok((self.pop()?, i))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        // sort the indices to get the correct permutation
+                        // (stability isn't relevant because the second
+                        // elements of the tuple are always distinct)
+                        indices.sort_unstable();
+                        // move elements in `a` according to this permutation
+                        for i in 0..a.len() {
+                            let mut j = indices[i].1;
+                            while j < i {
+                                j = indices[j].1;
+                            }
+                            indices[i].1 = j;
+                            a.swap(i, j);
+                        }
+                        self.push(a);
+                    }
+                    v => return Err(Error::NotHandled1 {
+                        op: "$",
+                        got: v.type_name(),
+                    }),
                 }
+            }
 
-                LowerA => {
-                    let a = self.pop()?;
-                    self.push(im::vector![a]);
-                }
+            LowerA => {
+                let a = self.pop()?;
+                self.push(im::vector![a]);
+            }
 
-                Hash => {
-                    let b = self.pop()?;
-                    let a = self.pop()?;
-                    binary_match!((a, b) {
-                        (a: i64, b: i64) => // int int #
-                            if let Ok(pow) = u32::try_from(b) {
-                                self.push(a.wrapping_pow(pow));
-                            } else if let Ok(pow) = i32::try_from(b) {
-                                self.push((a as f64).powi(pow));
+            Hash => {
+                let b = self.pop()?;
+                let a = self.pop()?;
+                binary_match!((a, b) {
+                    (a: i64, b: i64) => // int int #
+                        if let Ok(pow) = u32::try_from(b) {
+                            self.push(a.wrapping_pow(pow));
+                        } else if let Ok(pow) = i32::try_from(b) {
+                            self.push((a as f64).powi(pow));
+                        } else {
+                            self.push((a as f64).powf(b as f64));
+                        },
+                    (a: f64, b: i64) => // real int #
+                        if let Ok(pow) = i32::try_from(b) {
+                            self.push((a as f64).powi(pow))
+                        } else {
+                            self.push(a.powf(b as f64))
+                        },
+                    (a: NumToReal, b: f64) => // num real #
+                        self.push(a.0.powf(b)),
+                    [a: Scalar, b: Array] => // scalar array #, array scalar #
+                        match b.iter().position(|e| e.find_eq(&a.0)) {
+                            Some(i) => self.push(i as i64),
+                            None => self.push(-1),
+                        },
+                    (a: Array, b: Array) => // array array #
+                        {
+                            let al = a.len();
+                            let bl = b.len();
+                            let idx = if bl > al {
+                                None
                             } else {
-                                self.push((a as f64).powf(b as f64));
-                            },
-                        (a: f64, b: i64) => // real int #
-                            if let Ok(pow) = i32::try_from(b) {
-                                self.push((a as f64).powi(pow))
-                            } else {
-                                self.push(a.powf(b as f64))
-                            },
-                        (a: NumToReal, b: f64) => // num real #
-                            self.push(a.0.powf(b)),
-                        [a: Scalar, b: Array] => // scalar array #, array scalar #
-                            match b.iter().position(|e| e.find_eq(&a.0)) {
+                                (0 .. 1 + al - bl).find(|&i|
+                                    a.iter()
+                                        .zip(&b)
+                                        .skip(i)
+                                        .all(|(ai, bi)| ai.find_eq(bi)))
+                            };
+                            match idx {
                                 Some(i) => self.push(i as i64),
                                 None => self.push(-1),
-                            },
-                        (a: Array, b: Array) => // array array #
-                            {
-                                let al = a.len();
-                                let bl = b.len();
-                                let idx = if bl > al {
-                                    None
-                                } else {
-                                    (0 .. 1 + al - bl).find(|&i|
-                                        a.iter()
-                                            .zip(&b)
-                                            .skip(i)
-                                            .all(|(ai, bi)| ai.find_eq(bi)))
-                                };
-                                match idx {
-                                    Some(i) => self.push(i as i64),
-                                    None => self.push(-1),
-                                }
-                            },
-                        [a: Array, b: Block] => // array block #, block array #
-                            match try_position(
-                                a.into_iter(),
-                                |elem| {
-                                    self.push(elem);
-                                    self.run(&b)?; // TODO attach context information
-                                    self.pop()?.truthiness()
-                                        .ok_or(Error::NoBlockTruthiness)
-                                })?
-                            {
-                                Some(i) => self.push(i as i64),
-                                None => self.push(-1),
-                            },
-                    });
-                }
+                            }
+                        },
+                    [a: Array, b: Block] => // array block #, block array #
+                        match try_position(
+                            a.into_iter(),
+                            |elem| {
+                                self.push(elem);
+                                self.run(&b)?; // TODO attach context information
+                                self.pop()?.truthiness()
+                                    .ok_or(Error::NoBlockTruthiness)
+                            })?
+                        {
+                            Some(i) => self.push(i as i64),
+                            None => self.push(-1),
+                        },
+                });
+            }
 
-                Plus => {
-                    let b = self.pop()?;
-                    let a = self.pop()?;
-                    binary_match!((a, b) {
-                        (a: Char, b: Char) => // char char +
-                            self.push(im::vector![a.into(), b.into()]),
-                        [a: Char, b: ScalarToInt] => // char num +, num char +
-                            self.push(Char(a.0.wrapping_add(b.0 as u32))),
-                        (a: i64, b: i64) => // int int +
-                            self.push(a.wrapping_add(b)),
-                        [a: f64, b: NumToReal] => // int num +, num int +
-                            self.push(a + b.0),
-                        (a: Array, b: Array) => // arr arr +
-                            {
-                                let mut a = a;
-                                a.append(b);
-                                self.push(a);
-                            },
-                        (a: Value, b: Array) => // any arr +
-                            {
-                                let mut b = b;
-                                b.push_front(a);
-                                self.push(b);
-                            },
-                        (a: Array, b: Value) => // arr any +
-                            {
-                                let mut a = a;
-                                a.push_back(b);
-                                self.push(a);
-                            },
-                        (a: Value, b: Value) => // error
-                            return Err(Error::NotHandled2 {
-                                got1: a.type_name(),
-                                got2: b.type_name(),
-                                op: "+",
-                            }),
-                    });
-                }
+            Plus => {
+                let b = self.pop()?;
+                let a = self.pop()?;
+                binary_match!((a, b) {
+                    (a: Char, b: Char) => // char char +
+                        self.push(im::vector![a.into(), b.into()]),
+                    [a: Char, b: ScalarToInt] => // char num +, num char +
+                        self.push(Char(a.0.wrapping_add(b.0 as u32))),
+                    (a: i64, b: i64) => // int int +
+                        self.push(a.wrapping_add(b)),
+                    [a: f64, b: NumToReal] => // int num +, num int +
+                        self.push(a + b.0),
+                    (a: Array, b: Array) => // arr arr +
+                        {
+                            let mut a = a;
+                            a.append(b);
+                            self.push(a);
+                        },
+                    (a: Value, b: Array) => // any arr +
+                        {
+                            let mut b = b;
+                            b.push_front(a);
+                            self.push(b);
+                        },
+                    (a: Array, b: Value) => // arr any +
+                        {
+                            let mut a = a;
+                            a.push_back(b);
+                            self.push(a);
+                        },
+                    (a: Value, b: Value) => // error
+                        return Err(Error::NotHandled2 {
+                            got1: a.type_name(),
+                            got2: b.type_name(),
+                            op: "+",
+                        }),
+                });
             }
         }
         Ok(())
