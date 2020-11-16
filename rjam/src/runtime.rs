@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::bytecode::{Bytecode, Opcode};
-use crate::value::{Char, Array, Block, Value, Scalar, ScalarToInt, NumToReal};
+use crate::value::{Char, Array, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
 use crate::utils::get_wrapping;
 
 pub struct Runtime {
@@ -13,12 +13,16 @@ impl Runtime {
         self.stack.push(v.into());
     }
 
-    pub fn new() -> Self {
-        Runtime { stack: Vec::new() }
+    fn pop(&mut self) -> Value {
+        self.stack.pop().unwrap()
     }
 
-    pub fn pop(&mut self) -> Value {
-        self.stack.pop().unwrap()
+    fn pop_typed<T: FromValue>(&mut self) -> T {
+        T::from_value(self.pop()).expect("type error")
+    }
+
+    pub fn new() -> Self {
+        Runtime { stack: Vec::new() }
     }
 
     fn copy_elem(&mut self, i: i64) {
@@ -56,6 +60,37 @@ impl Runtime {
                     match a {
                         Value::Int(i) => self.copy_elem(i),
                         Value::Real(x) => self.copy_elem(x as i64),
+                        Value::Array(mut a) => {
+                            a.sort();
+                            self.push(a);
+                        }
+                        Value::Block(b) => {
+                            // this algorithm is mostly borrowed from
+                            // `<&mut [T]>::sort_by_cached_key()`
+                            let mut a = self.pop_typed::<Array>();
+                            // evaluate the block for each element in the array
+                            let mut indices = a.iter().enumerate()
+                                .map(|(i, e)| {
+                                    self.push(e.clone());
+                                    self.run(&b);
+                                    (self.pop(), i)
+                                })
+                                .collect::<Vec<_>>();
+                            // sort the indices to get the correct permutation
+                            // (stability isn't relevant because the second
+                            // elements of the tuple are always distinct)
+                            indices.sort_unstable();
+                            // move elements in `a` according to this permutation
+                            for i in 0..a.len() {
+                                let mut j = indices[i].1;
+                                while j < i {
+                                    j = indices[j].1;
+                                }
+                                indices[i].1 = j;
+                                a.swap(i, j);
+                            }
+                            self.push(a);
+                        }
                         _ => panic!("invalid type"),
                     }
                 }

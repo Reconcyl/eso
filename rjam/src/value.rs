@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
 use std::fmt::Write as _;
 use std::rc::Rc;
 
 use crate::bytecode::Bytecode;
+use crate::utils::f64_total_cmp;
 
 /// A (possibly invalid) Unicode code point. We use this instead of
 /// `char` so that character arithmetic never results in an error.
@@ -95,6 +97,55 @@ impl Value {
             }
             Value::Block(_) => s.push_str("{...}"), // TODO visualize this better
         }
+    }
+}
+
+/// The ordering used for sorting and comparison.
+impl Ord for Value {
+    fn cmp(&self, other: &Value) -> Ordering {
+        use Value::*;
+        match (self, other) {
+            // scalar types are comparable with each other
+
+            (&Char(a), &Char(b)) => a.0.cmp(&b.0),
+            (&Char(a), &Int(b)) => (a.0 as i64).cmp(&b),
+            (&Char(a), &Real(b)) => f64_total_cmp(a.0 as f64, b),
+
+            (&Int(a), &Char(b)) => a.cmp(&(b.0 as i64)),
+            (&Int(a), &Int(b)) => a.cmp(&b),
+            (&Int(a), &Real(b)) => f64_total_cmp(a as f64, b),
+
+            (&Real(a), &Char(b)) => f64_total_cmp(a, b.0 as f64),
+            (&Real(a), &Int(b)) => f64_total_cmp(a, b as f64),
+            (&Real(a), &Real(b)) => f64_total_cmp(a, b),
+
+            // blocks are greater than all other types but equal to each other
+
+            (&Block(_), &Block(_)) => Ordering::Equal,
+            (&Block(_), _) => Ordering::Greater,
+            (_, &Block(_)) => Ordering::Less,
+
+            // arrays are greater than scalars and comparable
+            // with each other lexicographically
+
+            (&Array(ref a), &Array(ref b)) => a.cmp(b),
+            (&Array(_), _) => Ordering::Greater,
+            (_, &Array(_)) => Ordering::Less,
+        }
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for Value {}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Value) -> bool {
+        self.cmp(other) == Ordering::Equal
     }
 }
 
