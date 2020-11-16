@@ -1,8 +1,51 @@
 use std::convert::TryFrom;
+use std::fmt;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{Char, Array, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
-use crate::utils::get_wrapping;
+use crate::utils::{get_wrapping, try_position};
+
+pub enum Error {
+    BadOpcode(u8),
+    PopEmpty,
+    PickEmpty,
+    NoBlockTruthiness,
+    Type {
+        ex: &'static str,
+        got: &'static str,
+        op: &'static str,
+    },
+    NotHandled1 {
+        got: &'static str,
+        op: &'static str,
+    },
+    NotHandled2 {
+        got1: &'static str,
+        got2: &'static str,
+        op: &'static str,
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::BadOpcode(b) =>
+                write!(f, "encountered invalid opcode `0x{:02x}` (this is a bug)", b),
+            Self::PopEmpty =>
+                write!(f, "attempted to pop from empty stack"),
+            Self::PickEmpty =>
+                write!(f, "attempted to pick from empty stack"),
+            Self::NoBlockTruthiness =>
+                write!(f, "attempted to cast block to bool"),
+            Self::Type { ex, got, op } =>
+                write!(f, "`{}` expected {}, got {}", op, ex, got),
+            Self::NotHandled1 { got, op } =>
+                write!(f, "`{} {}` not handled", got, op),
+            Self::NotHandled2 { got1, got2, op } =>
+                write!(f, "`{} {} {}` not handled", got1, got2, op),
+        }
+    }
+}
 
 pub struct Runtime {
     stack: Vec<Value>,
@@ -13,34 +56,38 @@ impl Runtime {
         self.stack.push(v.into());
     }
 
-    fn pop(&mut self) -> Value {
-        self.stack.pop().unwrap()
+    fn pop(&mut self) -> Result<Value, Error> {
+        self.stack.pop().ok_or(Error::PopEmpty)
     }
 
-    fn pop_typed<T: FromValue>(&mut self) -> T {
-        T::from_value(self.pop()).expect("type error")
+    fn pop_typed<T: FromValue>(&mut self, op: &'static str) -> Result<T, Error> {
+        let val = self.pop()?;
+        let got = val.type_name();
+        T::from_value(val).ok_or_else(
+            || Error::Type { ex: T::description(), got, op })
+    }
+
+    fn copy_elem(&mut self, i: i64) -> Result<(), Error> {
+        if let Some(e) = get_wrapping(&self.stack, i) {
+            let val = e.clone();
+            self.push(val);
+            Ok(())
+        } else {
+            Err(Error::PickEmpty)
+        }
     }
 
     pub fn new() -> Self {
         Runtime { stack: Vec::new() }
     }
 
-    fn copy_elem(&mut self, i: i64) {
-        if let Some(e) = get_wrapping(&self.stack, i) {
-            let val = e.clone();
-            self.push(val);
-        } else {
-            panic!("cannot pick from empty stack")
-        }
-    }
-
-    pub fn run(&mut self, bc: &Bytecode) {
+    pub fn run(&mut self, bc: &Bytecode) -> Result<(), Error> {
         let mut const_idx = 0;
         for &b in &bc.bytes {
             use Opcode::*;
             let op = match Opcode::from_byte(b) {
                 Some(op) => op,
-                None => unreachable!("0x{:02x} is not a valid opcode", b),
+                None => return Err(Error::BadOpcode(b)),
             };
             match op {
                 Lit => {
@@ -51,15 +98,14 @@ impl Runtime {
                 One => self.push(1),
 
                 Excl => {
-                    let a = self.pop();
-                    self.push(!a.truthiness().unwrap() as i64)
+                    let a = self.pop()?;
+                    self.push(!a.truthiness().unwrap() as i64);
                 }
 
                 Dollar => {
-                    let a = self.pop();
-                    match a {
-                        Value::Int(i) => self.copy_elem(i),
-                        Value::Real(x) => self.copy_elem(x as i64),
+                    match self.pop()? {
+                        Value::Int(i) => self.copy_elem(i)?,
+                        Value::Real(x) => self.copy_elem(x as i64)?,
                         Value::Array(mut a) => {
                             a.sort();
                             self.push(a);
@@ -67,15 +113,15 @@ impl Runtime {
                         Value::Block(b) => {
                             // this algorithm is mostly borrowed from
                             // `<&mut [T]>::sort_by_cached_key()`
-                            let mut a = self.pop_typed::<Array>();
+                            let mut a = self.pop_typed::<Array>("$")?;
                             // evaluate the block for each element in the array
                             let mut indices = a.iter().enumerate()
                                 .map(|(i, e)| {
                                     self.push(e.clone());
-                                    self.run(&b);
-                                    (self.pop(), i)
+                                    self.run(&b)?; // TODO attach context information
+                                    Ok((self.pop()?, i))
                                 })
-                                .collect::<Vec<_>>();
+                                .collect::<Result<Vec<_>, _>>()?;
                             // sort the indices to get the correct permutation
                             // (stability isn't relevant because the second
                             // elements of the tuple are always distinct)
@@ -91,18 +137,21 @@ impl Runtime {
                             }
                             self.push(a);
                         }
-                        _ => panic!("invalid type"),
+                        v => return Err(Error::NotHandled1 {
+                            op: "$",
+                            got: v.type_name(),
+                        }),
                     }
                 }
 
                 LowerA => {
-                    let a = self.pop();
+                    let a = self.pop()?;
                     self.push(im::vector![a]);
                 }
 
                 Hash => {
-                    let b = self.pop();
-                    let a = self.pop();
+                    let b = self.pop()?;
+                    let a = self.pop()?;
                     binary_match!((a, b) {
                         (a: i64, b: i64) => // int int #
                             if let Ok(pow) = u32::try_from(b) {
@@ -144,12 +193,14 @@ impl Runtime {
                                 }
                             },
                         [a: Array, b: Block] => // array block #, block array #
-                            match a.into_iter()
-                                .position(|elem| {
+                            match try_position(
+                                a.into_iter(),
+                                |elem| {
                                     self.push(elem);
-                                    self.run(&b);
-                                    self.pop().truthiness().unwrap()
-                                })
+                                    self.run(&b)?; // TODO attach context information
+                                    self.pop()?.truthiness()
+                                        .ok_or(Error::NoBlockTruthiness)
+                                })?
                             {
                                 Some(i) => self.push(i as i64),
                                 None => self.push(-1),
@@ -158,8 +209,8 @@ impl Runtime {
                 }
 
                 Plus => {
-                    let b = self.pop();
-                    let a = self.pop();
+                    let b = self.pop()?;
+                    let a = self.pop()?;
                     binary_match!((a, b) {
                         (a: Char, b: Char) => // char char +
                             self.push(im::vector![a.into(), b.into()]),
@@ -187,10 +238,17 @@ impl Runtime {
                                 a.push_back(b);
                                 self.push(a);
                             },
+                        (a: Value, b: Value) => // error
+                            return Err(Error::NotHandled2 {
+                                got1: a.type_name(),
+                                got2: b.type_name(),
+                                op: "+",
+                            }),
                     });
                 }
             }
         }
+        Ok(())
     }
 
     pub fn print_stack(&self) {

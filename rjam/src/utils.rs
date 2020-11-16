@@ -16,3 +16,15 @@ pub fn f64_total_cmp(a: f64, b: f64) -> Ordering {
         }
     )
 }
+
+pub fn try_position<T, E>(
+    items: impl Iterator<Item=T>,
+    mut test: impl FnMut(T) -> Result<bool, E>
+) -> Result<Option<usize>, E> {
+    for (i, t) in items.enumerate() {
+        if test(t)? {
+            return Ok(Some(i));
+        }
+    }
+    Ok(None)
+}

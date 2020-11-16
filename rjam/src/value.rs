@@ -54,13 +54,6 @@ impl Value {
         }
     }
 
-    fn is_char(&self) -> bool {
-        match *self {
-            Value::Char(_) => true,
-            _ => false,
-        }
-    }
-
     pub fn repr(&self, s: &mut String) {
         match self {
             Value::Char(c) => { s.push('\''); s.push(c.to_std_char()) }
@@ -68,7 +61,7 @@ impl Value {
             Value::Real(f) => { write!(s, "{:.}", f).unwrap() }
             Value::Array(a) => {
                 // is this array a string?
-                if a.iter().all(Value::is_char) {
+                if a.iter().all(Char::matches) {
                     s.push('"');
                     for c in a {
                         if let Value::Char(c) = c {
@@ -96,6 +89,16 @@ impl Value {
                 }
             }
             Value::Block(_) => s.push_str("{...}"), // TODO visualize this better
+        }
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Self::Char(_) => "character",
+            Self::Int(_) => "integer",
+            Self::Real(_) => "float",
+            Self::Array(_) => "array",
+            Self::Block(_) => "block",
         }
     }
 }
@@ -180,11 +183,14 @@ impl Into<Value> for Array {
 }
 
 pub trait FromValue: Sized {
+    fn description() -> &'static str;
     fn matches(value: &Value) -> bool;
     fn from_value(value: Value) -> Option<Self>;
 }
 
 impl FromValue for Char {
+    fn description() -> &'static str { "character" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Char(_))
     }
@@ -198,6 +204,8 @@ impl FromValue for Char {
 }
 
 impl FromValue for i64 {
+    fn description() -> &'static str { "integer" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Int(_))
     }
@@ -211,6 +219,8 @@ impl FromValue for i64 {
 }
 
 impl FromValue for f64 {
+    fn description() -> &'static str { "float" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Real(_))
     }
@@ -224,6 +234,8 @@ impl FromValue for f64 {
 }
 
 impl FromValue for Array {
+    fn description() -> &'static str { "array" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Array(_))
     }
@@ -237,6 +249,8 @@ impl FromValue for Array {
 }
 
 impl FromValue for Block {
+    fn description() -> &'static str { "block" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Block(_))
     }
@@ -250,6 +264,8 @@ impl FromValue for Block {
 }
 
 impl FromValue for Value {
+    fn description() -> &'static str { "any value" }
+
     fn matches(_: &Value) -> bool {
         true
     }
@@ -263,6 +279,8 @@ impl FromValue for Value {
 pub struct Scalar(pub Value);
 
 impl FromValue for Scalar {
+    fn description() -> &'static str { "char or number" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Char(_) | Value::Int(_) | Value::Real(_))
     }
@@ -276,6 +294,8 @@ impl FromValue for Scalar {
 pub struct ScalarToInt(pub i64);
 
 impl FromValue for ScalarToInt {
+    fn description() -> &'static str { "char or number" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Char(_) | Value::Int(_) | Value::Real(_))
     }
@@ -294,6 +314,8 @@ impl FromValue for ScalarToInt {
 pub struct NumToReal(pub f64);
 
 impl FromValue for NumToReal {
+    fn description() -> &'static str { "number" }
+
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Int(_) | Value::Real(_))
     }
@@ -312,8 +334,8 @@ pub fn try_downcast_2<T: FromValue, U: FromValue>(a: Value, b: Value)
     -> Result<(T, U), (Value, Value)>
 {
     if T::matches(&a) && U::matches(&b) {
-        T::from_value(a).zip(U::from_value(b))
-            .ok_or_else(|| panic!("invalid `matches()` method"))
+        Ok(T::from_value(a).zip(U::from_value(b))
+            .expect("invalid `matches()` method"))
     } else {
         Err((a, b))
     }

@@ -16,6 +16,8 @@ fn main() {
         Ok(bytecode) => bytecode
     };
     let mut runtime = runtime::Runtime::new();
-    runtime.run(&bytecode);
+    if let Err(e) = runtime.run(&bytecode) {
+        eprintln!("error: {}", e);
+    }
     runtime.print_stack();
 }
