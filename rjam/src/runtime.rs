@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::bytecode::{Bytecode, Opcode};
-use crate::value::{Char, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
+use crate::value::{Char, Array, Block, Value, Scalar, ScalarToInt, NumToReal};
 use crate::utils::get_wrapping;
 
 pub struct Runtime {
@@ -62,7 +62,7 @@ impl Runtime {
 
                 LowerA => {
                     let a = self.pop();
-                    self.push(vec![a]);
+                    self.push(im::vector![a]);
                 }
 
                 Hash => {
@@ -85,12 +85,12 @@ impl Runtime {
                             },
                         (a: NumToReal, b: f64) => // num real #
                             self.push(a.0.powf(b)),
-                        [a: Scalar, b: Vec<Value>] => // scalar array #, array scalar #
+                        [a: Scalar, b: Array] => // scalar array #, array scalar #
                             match b.iter().position(|e| e.find_eq(&a.0)) {
                                 Some(i) => self.push(i as i64),
                                 None => self.push(-1),
                             },
-                        (a: Vec<Value>, b: Vec<Value>) => // array array #
+                        (a: Array, b: Array) => // array array #
                             {
                                 let al = a.len();
                                 let bl = b.len();
@@ -98,8 +98,9 @@ impl Runtime {
                                     None
                                 } else {
                                     (0 .. 1 + al - bl).find(|&i|
-                                        a[i..].iter()
-                                            .zip(&b[i..])
+                                        a.iter()
+                                            .zip(&b)
+                                            .skip(i)
                                             .all(|(ai, bi)| ai.find_eq(bi)))
                                 };
                                 match idx {
@@ -107,7 +108,7 @@ impl Runtime {
                                     None => self.push(-1),
                                 }
                             },
-                        [a: Vec<Value>, b: Block] => // array block #, block array #
+                        [a: Array, b: Block] => // array block #, block array #
                             match a.into_iter()
                                 .position(|elem| {
                                     self.push(elem);
@@ -126,30 +127,29 @@ impl Runtime {
                     let a = self.pop();
                     binary_match!((a, b) {
                         (a: Char, b: Char) => // char char +
-                            self.push(vec![a.into(), b.into()]),
+                            self.push(im::vector![a.into(), b.into()]),
                         [a: Char, b: ScalarToInt] => // char num +, num char +
                             self.push(Char(a.0.wrapping_add(b.0 as u32))),
                         (a: i64, b: i64) => // int int +
                             self.push(a.wrapping_add(b)),
                         [a: f64, b: NumToReal] => // int num +, num int +
                             self.push(a + b.0),
-                        (a: Vec<Value>, b: Vec<Value>) => // arr arr +
+                        (a: Array, b: Array) => // arr arr +
                             {
                                 let mut a = a;
-                                let mut b = b;
-                                a.append(&mut b);
+                                a.append(b);
                                 self.push(a);
                             },
-                        (a: Value, b: Vec<Value>) => // any arr +
+                        (a: Value, b: Array) => // any arr +
                             {
                                 let mut b = b;
-                                b.insert(0, a);
+                                b.push_front(a);
                                 self.push(b);
                             },
-                        (a: Vec<Value>, b: Value) => // arr any +
+                        (a: Array, b: Value) => // arr any +
                             {
                                 let mut a = a;
-                                a.push(b);
+                                a.push_back(b);
                                 self.push(a);
                             },
                     });

@@ -1,5 +1,5 @@
 use crate::bytecode::{Bytecode, Opcode};
-use crate::value::Value;
+use crate::value::{Array, Value};
 
 /// An error encountered while parsing.
 #[derive(Debug)]
@@ -72,7 +72,7 @@ impl ParseState<'_> {
     /// Decode the contents of a string literal (without the leading
     /// quote).
     fn next_str(&mut self) -> Result<Value, Error> {
-        let mut chars = Vec::new();
+        let mut chars = Array::new();
         let mut escaped = false;
         loop {
             let c = self.next_char(Expect::StrLiteral)?;
@@ -80,16 +80,16 @@ impl ParseState<'_> {
                 if c != '\\' && c != '"' {
                     // if we find a backslash before non-escapable
                     // characters, just treat it literally
-                    chars.push('\\'.into());
+                    chars.push_back('\\'.into());
                 }
-                chars.push(c.into());
+                chars.push_back(c.into());
                 escaped = false;
             } else if c == '\\' {
                 escaped = true;
             } else if c == '"' {
                 break;
             } else {
-                chars.push(c.into());
+                chars.push_back(c.into());
             }
         }
         Ok(chars.into())

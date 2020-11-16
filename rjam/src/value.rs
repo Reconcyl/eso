@@ -16,13 +16,14 @@ impl Char {
 }
 
 pub type Block = Rc<Bytecode>;
+pub type Array = im::vector::Vector<Value>;
 
 #[derive(Clone)]
 pub enum Value {
     Char(Char),
     Int(i64), // TODO: use bigint
     Real(f64),
-    Array(Vec<Value>), // TODO: use im::Vector
+    Array(Array),
     Block(Block),
 }
 
@@ -121,7 +122,7 @@ impl Into<Value> for f64 {
     }
 }
 
-impl Into<Value> for Vec<Value> {
+impl Into<Value> for Array {
     fn into(self) -> Value {
         Value::Array(self)
     }
@@ -171,7 +172,7 @@ impl FromValue for f64 {
     }
 }
 
-impl FromValue for Vec<Value> {
+impl FromValue for Array {
     fn matches(v: &Value) -> bool {
         matches!(v, Value::Array(_))
     }
