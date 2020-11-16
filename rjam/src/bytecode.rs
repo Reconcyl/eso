@@ -32,7 +32,8 @@ opcodes!(pub Opcode {
 
     // Unary operators
     Not    = 0x40,
-    LowerA = 0x41,
+    Dollar = 0x41,
+    LowerA = 0x42,
 
     // Binary operators
     Hash   = 0x80,

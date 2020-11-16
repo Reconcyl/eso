@@ -3,6 +3,7 @@ mod value;
 mod bytecode;
 mod parse;
 mod runtime;
+mod utils;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();

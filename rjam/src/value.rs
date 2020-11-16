@@ -40,9 +40,7 @@ impl Value {
             _ => false,
         }
     }
-}
 
-impl Value {
     pub fn truthiness(&self) -> Option<bool> {
         match *self {
             Value::Char(c) => Some(c.0 > 0),

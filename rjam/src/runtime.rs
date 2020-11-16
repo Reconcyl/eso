@@ -1,7 +1,8 @@
 use std::convert::TryFrom;
 
-pub use crate::bytecode::{Bytecode, Opcode};
-pub use crate::value::{Char, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
+use crate::bytecode::{Bytecode, Opcode};
+use crate::value::{Char, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
+use crate::utils::get_wrapping;
 
 pub struct Runtime {
     stack: Vec<Value>,
@@ -18,6 +19,15 @@ impl Runtime {
 
     pub fn pop(&mut self) -> Value {
         self.stack.pop().unwrap()
+    }
+
+    fn copy_elem(&mut self, i: i64) {
+        if let Some(e) = get_wrapping(&self.stack, i) {
+            let val = e.clone();
+            self.push(val);
+        } else {
+            panic!("cannot pick from empty stack")
+        }
     }
 
     pub fn run(&mut self, bc: &Bytecode) {
@@ -39,6 +49,15 @@ impl Runtime {
                 Not => {
                     let a = self.pop();
                     self.push(!a.truthiness().unwrap() as i64)
+                }
+
+                Dollar => {
+                    let a = self.pop();
+                    match a {
+                        Value::Int(i) => self.copy_elem(i),
+                        Value::Real(x) => self.copy_elem(x as i64),
+                        _ => panic!("invalid type"),
+                    }
                 }
 
                 LowerA => {
