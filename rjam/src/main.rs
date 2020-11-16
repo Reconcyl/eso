@@ -12,7 +12,7 @@ fn main() {
         return;
     }
     let bytecode = match parse::parse(args[1].as_bytes()) {
-        Err(e) => { eprintln!("Failed to parse: {:?}", e); return }
+        Err(e) => { eprintln!("syntax error: {}", e); return }
         Ok(bytecode) => bytecode
     };
     let mut runtime = runtime::Runtime::new();

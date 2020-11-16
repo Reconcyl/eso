@@ -1,8 +1,9 @@
+use std::fmt;
+
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{Array, Value};
 
 /// An error encountered while parsing.
-#[derive(Debug)]
 pub enum Error {
     Unexpected {
         ex: Expect,
@@ -10,21 +11,60 @@ pub enum Error {
     }
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Unexpected { ex, got } =>
+                write!(f, "expected {}, got {}", ex, got),
+        }
+    }
+}
+
 /// A description of a particular thing the parser could be expecting.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum Expect {
     Instr,
     StrLiteral,
     CharLiteral,
 }
 
+impl fmt::Display for Expect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Instr => write!(f, "instruction"),
+            Self::StrLiteral => write!(f, "UTF-8 string literal"),
+            Self::CharLiteral => write!(f, "UTF-8 character"),
+        }
+    }
+}
+
 /// A description of a particular malformed construct that the parser
 /// could encounter.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum Outcome {
     Byte(u8),
-    InvalidUtf8([u8; 4]),
+    BadUtf8([u8; 4]),
     Eof,
+}
+
+impl fmt::Display for Outcome {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::ascii::escape_default;
+        match self {
+            Self::Byte(b) =>
+                write!(f, "invalid byte '{}'", escape_default(*b)),
+            Self::BadUtf8(bs) => {
+                write!(f, "invalid UTF-8 sequence \"")?;
+                for &b in bs {
+                    if b.is_ascii() { break }
+                    write!(f, "{}", escape_default(b))?;
+                }
+                write!(f, "\"")
+            }
+            Self::Eof =>
+                write!(f, "end of file")
+        }
+    }
 }
 
 struct ParseState<'a> {
@@ -63,7 +103,7 @@ impl ParseState<'_> {
             } else if i == 4 {
                 return Err(Error::Unexpected {
                     ex,
-                    got: Outcome::InvalidUtf8(buf),
+                    got: Outcome::BadUtf8(buf),
                 });
             }
         }
