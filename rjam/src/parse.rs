@@ -111,7 +111,7 @@ impl ParseState<'_> {
         use Opcode::*;
         match self.next_byte().unwrap() {
             b'\t' | b'\n' | b'\r' | b' ' => {}
-            b'!' => self.add_opcode(Not),
+            b'!' => self.add_opcode(Excl),
             b'"' => {
                 let val = self.next_str()?;
                 self.add_lit(val);

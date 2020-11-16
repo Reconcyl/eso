@@ -50,7 +50,7 @@ impl Runtime {
 
                 One => self.push(1),
 
-                Not => {
+                Excl => {
                     let a = self.pop();
                     self.push(!a.truthiness().unwrap() as i64)
                 }

@@ -31,7 +31,7 @@ opcodes!(pub Opcode {
     One    = 0x01,
 
     // Unary operators
-    Not    = 0x40,
+    Excl   = 0x40,
     Dollar = 0x41,
     LowerA = 0x42,
 
