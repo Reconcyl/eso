@@ -165,6 +165,8 @@ impl ParseState<'_> {
             }
             b'+' => self.add_opcode(Plus),
             b'1' => self.add_opcode(One),
+            b'[' => self.add_opcode(LeftBracket),
+            b']' => self.add_opcode(RightBracket),
             b'a' => self.add_opcode(LowerA),
             b => return Err(Error::Unexpected {
                 ex: Expect::Instr,

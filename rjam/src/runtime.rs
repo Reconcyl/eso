@@ -52,6 +52,9 @@ impl fmt::Display for Error {
 
 pub struct Runtime {
     stack: Vec<Value>,
+    /// The positions of flags placed on the
+    /// stack to mark the start of arrays.
+    flags: Vec<usize>,
 }
 
 impl Runtime {
@@ -59,8 +62,23 @@ impl Runtime {
         self.stack.push(v.into());
     }
 
+    /// Remove the top value from the stack.
     fn pop(&mut self) -> Result<Value, Error> {
-        self.stack.pop().ok_or(Error::PopEmpty)
+        if let Some(val) = self.stack.pop() {
+            let height = self.stack.len();
+            for flag_pos in self.flags.iter_mut().rev() {
+                // positions are stored in sorted order, so this
+                // search will always find all such elements
+                if *flag_pos > height {
+                    *flag_pos = height;
+                } else {
+                    break
+                }
+            }
+            Ok(val)
+        } else {
+            Err(Error::PopEmpty)
+        }
     }
 
     fn pop_typed<T: FromValue>(&mut self, op: &'static str) -> Result<T, Error> {
@@ -80,8 +98,24 @@ impl Runtime {
         }
     }
 
+    /// Add a flag to mark the start of an array literal.
+    fn begin_array(&mut self) {
+        self.flags.push(self.stack.len());
+    }
+
+    /// Remove all elements pushed to the stack since the most recent flag
+    /// and collect them into an array.
+    fn end_array(&mut self) {
+        let flag = self.flags.pop().unwrap_or(0);
+        let elems: Array = self.stack.drain(flag..).collect();
+        self.push(elems);
+    }
+
     pub fn new() -> Self {
-        Runtime { stack: Vec::new() }
+        Runtime {
+            stack: Vec::new(),
+            flags: Vec::new(),
+        }
     }
 
     pub fn run(&mut self, bc: &Bytecode) -> Result<(), Error> {
@@ -107,6 +141,9 @@ impl Runtime {
             }
 
             One => self.push(1),
+
+            LeftBracket => self.begin_array(),
+            RightBracket => self.end_array(),
 
             Excl => {
                 let a = self.pop()?;
