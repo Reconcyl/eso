@@ -283,6 +283,12 @@ impl Runtime {
                             Some(i) => self.push(i as i64),
                             None => self.push(-1),
                         },
+                    (a: Value, b: Value) => // error
+                        return Err(Error::NotHandled2 {
+                            got1: a.type_name(),
+                            got2: b.type_name(),
+                            op: "#"
+                        }),
                 });
             }
 
