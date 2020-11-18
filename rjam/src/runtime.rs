@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{Char, Array, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
-use crate::utils::{get_wrapping, try_position};
+use crate::utils::{get_wrapping, try_position, split_iter_one, split_iter_many};
 
 pub enum Error {
     BadOpcode(u8),
@@ -165,8 +165,60 @@ impl Runtime {
                         } else {
                             self.push(a % b);
                         },
-                    (a: NumToReal, b: NumToReal) => // int num %
+                    (a: NumToReal, b: NumToReal) => // real num %, num real %
                         self.push(a.0 % b.0),
+                    (a: Array, b: Array) => // array array %
+                        self.push(
+                            split_iter_many(&mut a.into_iter(), &b, b.len())
+                                .filter(|part: &Array| !part.is_empty())
+                                .map(Array::into)
+                                .collect::<Array>()),
+                    [a: Array, b: Char] => // array char %, char array %
+                        self.push(
+                            split_iter_one(&mut a.into_iter(), &b.into())
+                                .filter(|part: &Array| !part.is_empty())
+                                .map(Array::into)
+                                .collect::<Array>()),
+                    [a: Array, b: ScalarToInt] => // array num %, num array %
+                        if b.0 == 0 {
+                            return Err(Error::ModByZero);
+                        } else {
+                            let mut a = a;
+                            let res = if b.0 == 1 {
+                                a
+                            } else if b.0 == -1 {
+                                // reversing using `-1 %` is a common idiom
+                                for i in 0..a.len() / 2 {
+                                    a.swap(i, a.len() - 1 - i);
+                                }
+                                a
+                            } else if b.0 > 0 {
+                                let mut res = Array::new();
+                                let mut i = 0;
+                                while i < a.len() as i64 {
+                                    let elem = std::mem::take(&mut a[i as usize]);
+                                    res.push_back(elem);
+                                    i += b.0;
+                                }
+                                res
+                            } else {
+                                let mut res = Array::new();
+                                let mut i = (a.len() - 1) as i64;
+                                while i >= 0 {
+                                    let elem = std::mem::take(&mut a[i as usize]);
+                                    res.push_back(elem);
+                                    i += b.0;
+                                }
+                                res
+                            };
+                            self.push(res);
+                        },
+                    (a: Value, b: Value) => // error
+                        return Err(Error::NotHandled2 {
+                            got1: a.type_name(),
+                            got2: b.type_name(),
+                            op: "%",
+                        }),
                 })
             }
 

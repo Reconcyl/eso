@@ -18,7 +18,7 @@ impl Char {
 }
 
 pub type Block = Rc<Bytecode>;
-pub type Array = im::vector::Vector<Value>;
+pub type Array = im::Vector<Value>;
 
 #[derive(Clone)]
 pub enum Value {
@@ -100,6 +100,12 @@ impl Value {
             Self::Array(_) => "array",
             Self::Block(_) => "block",
         }
+    }
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Self::Int(0)
     }
 }
 
