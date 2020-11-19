@@ -188,6 +188,12 @@ impl Into<Value> for Array {
     }
 }
 
+impl Into<Value> for Block {
+    fn into(self) -> Value {
+        Value::Block(self)
+    }
+}
+
 pub trait FromValue: Sized {
     fn description() -> &'static str;
     fn matches(value: &Value) -> bool;

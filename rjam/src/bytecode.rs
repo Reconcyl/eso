@@ -1,5 +1,6 @@
 use crate::value::Value;
 
+#[derive(Clone)]
 pub struct Bytecode {
     pub bytes: Vec<u8>,
     pub consts: Vec<Value>,

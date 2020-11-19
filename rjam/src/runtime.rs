@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::fmt;
+use std::rc::Rc;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{Char, Array, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
@@ -377,6 +378,40 @@ impl Runtime {
                             let mut a = a;
                             a.push_back(b);
                             self.push(a);
+                        },
+                    (a: Block, b: Block) => // block block +
+                        {
+                            let mut a = a;
+                            let a_ref = Rc::make_mut(&mut a);
+                            match Rc::try_unwrap(b) {
+                                Ok(mut b) => {
+                                    a_ref.bytes.append(&mut b.bytes);
+                                    a_ref.consts.append(&mut b.consts);
+                                }
+                                Err(b) => {
+                                    a_ref.bytes.extend(b.bytes.iter().cloned());
+                                    a_ref.consts.extend(b.consts.iter().cloned());
+                                }
+                            }
+                            self.push(a);
+                        },
+                    (a: Block, b: Value) => // block any +
+                        {
+                            let mut a = a;
+                            let a_ref = Rc::make_mut(&mut a);
+                            a_ref.bytes.push(Opcode::Lit as u8);
+                            a_ref.consts.push(b);
+                            self.push(a);
+                        },
+                    (a: Value, b: Block) => // any block +
+                        {
+                            // TODO - maybe use a VecDeque or
+                            // something so this isn't O(n)?
+                            let mut b = b;
+                            let b_ref = Rc::make_mut(&mut b);
+                            b_ref.bytes.insert(0, Opcode::Lit as u8);
+                            b_ref.consts.insert(0, a);
+                            self.push(b);
                         },
                     (a: Value, b: Value) => // error
                         return Err(Error::NotHandled2 {
