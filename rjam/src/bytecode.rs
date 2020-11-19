@@ -33,9 +33,10 @@ opcodes!(pub Opcode {
     RightBracket = 0x03,
 
     // Unary operators
-    Excl   = 0x40,
-    Dollar = 0x41,
-    LowerA = 0x42,
+    Excl       = 0x40,
+    Dollar     = 0x41,
+    Underscore = 0x42,
+    LowerA     = 0x43,
 
     // Binary operators
     Hash    = 0x80,

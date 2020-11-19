@@ -7,10 +7,15 @@ use crate::utils::{get_wrapping, try_position, split_iter_one, split_iter_many};
 
 pub enum Error {
     BadOpcode(u8),
+
     PopEmpty,
+    PeekEmpty,
     PickEmpty,
+
     NoBlockTruthiness,
     ModByZero,
+    AddOverflow,
+
     Type {
         ex: &'static str,
         got: &'static str,
@@ -34,12 +39,16 @@ impl fmt::Display for Error {
                 write!(f, "encountered invalid opcode `0x{:02x}` (this is a bug)", b),
             Self::PopEmpty =>
                 write!(f, "attempted to pop from empty stack"),
+            Self::PeekEmpty =>
+                write!(f, "attempted to peek from empty stack"),
             Self::PickEmpty =>
                 write!(f, "attempted to pick from empty stack"),
             Self::NoBlockTruthiness =>
                 write!(f, "attempted to cast block to bool"),
             Self::ModByZero =>
                 write!(f, "% by zero"),
+            Self::AddOverflow =>
+                write!(f, "overflow in + operator"),
             Self::Type { ex, got, op } =>
                 write!(f, "`{}` expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
@@ -79,6 +88,11 @@ impl Runtime {
         } else {
             Err(Error::PopEmpty)
         }
+    }
+
+    /// Return the top value on the stack.
+    fn peek(&self) -> Result<&Value, Error> {
+        self.stack.last().ok_or(Error::PeekEmpty)
     }
 
     fn pop_typed<T: FromValue>(&mut self, op: &'static str) -> Result<T, Error> {
@@ -190,6 +204,11 @@ impl Runtime {
                         got: v.type_name(),
                     }),
                 }
+            }
+
+            Underscore => {
+                let a = self.peek()?.clone();
+                self.push(a);
             }
 
             Percent => {
@@ -338,7 +357,7 @@ impl Runtime {
                     [a: Char, b: ScalarToInt] => // char num +, num char +
                         self.push(Char(a.0.wrapping_add(b.0 as u32))),
                     (a: i64, b: i64) => // int int +
-                        self.push(a.wrapping_add(b)),
+                        self.push(a.checked_add(b).ok_or(Error::AddOverflow)?),
                     [a: f64, b: NumToReal] => // int num +, num int +
                         self.push(a + b.0),
                     (a: Array, b: Array) => // arr arr +
