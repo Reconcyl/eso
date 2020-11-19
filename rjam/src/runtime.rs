@@ -147,7 +147,7 @@ impl Runtime {
 
             Excl => {
                 let a = self.pop()?;
-                self.push(!a.truthiness().unwrap() as i64);
+                self.push(!a.truthiness().ok_or(Error::NoBlockTruthiness)? as i64);
             }
 
             Dollar => {
