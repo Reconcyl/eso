@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Write as _;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::bytecode::Bytecode;
@@ -30,15 +31,15 @@ pub enum Value {
 }
 
 impl Value {
-    /// A very strict version of equality used by the `#` operator.
-    pub fn find_eq(&self, other: &Value) -> bool {
+    /// A very strict version of equality used by `Hashable` and the `#` operator.
+    pub fn strict_eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Char(a), Self::Char(b)) => a.0 == b.0,
             (Self::Int(a), Self::Int(b)) => a == b,
-            (Self::Real(a), Self::Real(b)) => a == b,
+            (Self::Real(a), Self::Real(b)) => a.to_bits() == b.to_bits(),
             (Self::Array(a), Self::Array(b)) =>
                 a.len() == b.len()
-                && a.iter().zip(b).all(|(ai, bi)| ai.find_eq(bi)),
+                && a.iter().zip(b).all(|(ai, bi)| ai.strict_eq(bi)),
             (Self::Block(a), Self::Block(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
@@ -92,13 +93,15 @@ impl Value {
         }
     }
 
+    pub const BLOCK_TYPE_NAME: &'static str = "block";
+
     pub fn type_name(&self) -> &'static str {
         match self {
             Self::Char(_) => "character",
             Self::Int(_) => "integer",
             Self::Real(_) => "float",
             Self::Array(_) => "array",
-            Self::Block(_) => "block",
+            Self::Block(_) => Self::BLOCK_TYPE_NAME,
         }
     }
 }
@@ -155,6 +158,72 @@ impl Eq for Value {}
 impl PartialEq for Value {
     fn eq(&self, other: &Value) -> bool {
         self.cmp(other) == Ordering::Equal
+    }
+}
+
+/// A newtype wrapper around `Value` that provides yet
+/// another interpretation of equality (this time used
+/// to provide a reasonable `Hash` implementation)
+#[repr(transparent)]
+pub struct Hashable(pub Value);
+
+/// Basic sanity checks to make sure `Hashable` has the
+/// same size and alignment as `Value`.
+mod hashable_static_assertions {
+    use std::mem::{size_of, align_of};
+    use super::{Hashable, Value};
+    const _SIZE:  u8 = (size_of::<Hashable>()  == size_of::<Value>())  as u8 - 1;
+    const _ALIGN: u8 = (align_of::<Hashable>() == align_of::<Value>()) as u8 - 1;
+}
+
+impl Hashable {
+    pub fn from_ref(v: &Value) -> &Self {
+        // I can't find any official documentation guaranteeing
+        // that transmutes between references to values and their
+        // `#[repr(transparent)]` wrappers is safe, but I hope it is...
+        let ptr = v as *const Value as *const Self;
+        unsafe { &*ptr }
+    }
+}
+
+impl Eq for Hashable {}
+
+impl PartialEq for Hashable {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.strict_eq(&other.0)
+    }
+}
+
+impl Hash for Hashable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        fn inner<H: Hasher>(v: &Value, state: &mut H) {
+            match v {
+                Value::Char(c) => {
+                    0u8.hash(state);
+                    c.0.hash(state);
+                }
+                Value::Int(i) => {
+                    1u8.hash(state);
+                    i.hash(state);
+                }
+                Value::Real(x) => {
+                    2u8.hash(state);
+                    x.to_bits().hash(state);
+                }
+                Value::Array(a) => {
+                    3u8.hash(state);
+                    a.len().hash(state);
+                    for elem in a {
+                        inner(elem, state);
+                    }
+                }
+                Value::Block(b) => {
+                    4u8.hash(state);
+                    Rc::as_ptr(b).hash(state);
+                }
+            }
+        }
+        inner(&self.0, state);
     }
 }
 
@@ -336,6 +405,25 @@ impl FromValue for NumToReal {
         match v {
             Value::Int(i) => Some(Self(i as f64)),
             Value::Real(x) => Some(Self(x)),
+            _ => None,
+        }
+    }
+}
+
+/// Matches an integer or character and converts it to a character.
+pub struct IntegralToChar(pub Char);
+
+impl FromValue for IntegralToChar {
+    fn description() -> &'static str { "char or integer" }
+
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Char(_) | Value::Int(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Char(c) => Some(Self(c)),
+            Value::Int(i) => Some(Self(Char(i as u32))),
             _ => None,
         }
     }

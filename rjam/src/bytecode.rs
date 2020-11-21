@@ -42,5 +42,6 @@ opcodes!(pub Opcode {
     // Binary operators
     Hash    = 0x80,
     Percent = 0x81,
-    Plus    = 0x82,
+    And     = 0x82,
+    Plus    = 0x83,
 });

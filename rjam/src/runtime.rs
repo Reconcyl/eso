@@ -1,9 +1,13 @@
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
 
 use crate::bytecode::{Bytecode, Opcode};
-use crate::value::{Char, Array, Block, Value, FromValue, Scalar, ScalarToInt, NumToReal};
+use crate::value::{
+    Char, Array, Block, Value, Hashable, FromValue,
+    Scalar, ScalarToInt, NumToReal, IntegralToChar,
+};
 use crate::utils::{get_wrapping, try_position, split_iter_one, split_iter_many};
 
 pub enum Error {
@@ -305,7 +309,7 @@ impl Runtime {
                     (a: NumToReal, b: f64) => // num real #
                         self.push(a.0.powf(b)),
                     [a: Scalar, b: Array] => // scalar array #, array scalar #
-                        match b.iter().position(|e| e.find_eq(&a.0)) {
+                        match b.iter().position(|e| e.strict_eq(&a.0)) {
                             Some(i) => self.push(i as i64),
                             None => self.push(-1),
                         },
@@ -320,7 +324,7 @@ impl Runtime {
                                     a.iter()
                                         .zip(&b)
                                         .skip(i)
-                                        .all(|(ai, bi)| ai.find_eq(bi)))
+                                        .all(|(ai, bi)| ai.strict_eq(bi)))
                             };
                             match idx {
                                 Some(i) => self.push(i as i64),
@@ -347,6 +351,57 @@ impl Runtime {
                             op: "#"
                         }),
                 });
+            }
+
+            And => {
+                let b = self.pop()?;
+                let a = self.pop()?;
+                binary_match!((a, b) {
+                    (a: i64, b: i64) => // int int &
+                        self.push(a & b),
+                    [a: Char, b: IntegralToChar] => // int char &, char int &, char char &
+                        self.push(Char(a.0 & b.0.0)),
+                    (a: Array, b: Array) => // array array &
+                        {
+                            let mut a = a;
+                            // keep the first copy of every element
+                            // in `a` as long as it appears in `b`
+                            let mut items: HashSet<_> = b.into_iter()
+                                .map(Hashable).collect();
+                            a.retain(|elem| {
+                                items.remove(Hashable::from_ref(elem))
+                            });
+                            self.push(a);
+                        },
+                    [a: Scalar, b: Array] => // scalar array &, array scalar &
+                        {
+                            let a = Hashable(a.0);
+                            let present = b.iter().any(|elem|
+                                Hashable::from_ref(elem) == &a);
+                            let mut b = b;
+                            b.clear();
+                            if present {
+                                b.push_back(a.0);
+                            }
+                            self.push(b);
+                        },
+                    (a: Value, b: Block) => // any block & (error if 1st is block)
+                        match a.truthiness() {
+                            Some(true) => self.run(&b)?, // TODO attach context information
+                            Some(false) => {}
+                            None => return Err(Error::NotHandled2 {
+                                got1: Value::BLOCK_TYPE_NAME,
+                                got2: Value::BLOCK_TYPE_NAME,
+                                op: "&",
+                            })
+                        },
+                    (a: Value, b: Value) => // error
+                        return Err(Error::NotHandled2 {
+                            got1: a.type_name(),
+                            got2: b.type_name(),
+                            op: "&",
+                        }),
+                })
             }
 
             Plus => {
