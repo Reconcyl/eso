@@ -164,6 +164,8 @@ impl ParseState<'_> {
                 let c = self.next_char(Expect::CharLiteral)?;
                 self.add_lit(c.into());
             }
+            b'(' => self.add_opcode(LeftParen),
+            b')' => self.add_opcode(RightParen),
             b'+' => self.add_opcode(Plus),
             b'1' => self.add_opcode(One),
             b'[' => self.add_opcode(LeftBracket),

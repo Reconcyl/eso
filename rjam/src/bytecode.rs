@@ -36,8 +36,10 @@ opcodes!(pub Opcode {
     // Unary operators
     Excl       = 0x40,
     Dollar     = 0x41,
-    Underscore = 0x42,
-    LowerA     = 0x43,
+    LeftParen  = 0x42,
+    RightParen = 0x43,
+    Underscore = 0x44,
+    LowerA     = 0x45,
 
     // Binary operators
     Hash    = 0x80,

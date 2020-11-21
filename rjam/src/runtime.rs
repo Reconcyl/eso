@@ -16,6 +16,7 @@ pub enum Error {
     PopEmpty,
     PeekEmpty,
     PickEmpty,
+    PopEmptyArray,
 
     NoBlockTruthiness,
     ModByZero,
@@ -48,6 +49,8 @@ impl fmt::Display for Error {
                 write!(f, "attempted to peek from empty stack"),
             Self::PickEmpty =>
                 write!(f, "attempted to pick from empty stack"),
+            Self::PopEmptyArray =>
+                write!(f, "attempted to pop from empty array"),
             Self::NoBlockTruthiness =>
                 write!(f, "attempted to cast block to bool"),
             Self::ModByZero =>
@@ -205,9 +208,43 @@ impl Runtime {
                         self.push(a);
                     }
                     v => return Err(Error::NotHandled1 {
-                        op: "$",
                         got: v.type_name(),
+                        op: "$",
                     }),
+                }
+            }
+
+            LeftParen => {
+                match self.pop()? {
+                    Value::Char(c) => self.push(Char(c.0.wrapping_sub(1))),
+                    Value::Int(i) => self.push(i.wrapping_sub(1)),
+                    Value::Real(x) => self.push(x - 1.),
+                    Value::Array(mut a) => {
+                        let first = a.pop_front().ok_or(Error::PopEmptyArray)?;
+                        self.push(a);
+                        self.push(first);
+                    }
+                    v => return Err(Error::NotHandled1 {
+                        got: v.type_name(),
+                        op: "(",
+                    })
+                }
+            }
+
+            RightParen => {
+                match self.pop()? {
+                    Value::Char(c) => self.push(Char(c.0.wrapping_add(1))),
+                    Value::Int(i) => self.push(i.wrapping_add(1)),
+                    Value::Real(x) => self.push(x + 1.),
+                    Value::Array(mut a) => {
+                        let last = a.pop_back().ok_or(Error::PopEmptyArray)?;
+                        self.push(a);
+                        self.push(last);
+                    }
+                    v => return Err(Error::NotHandled1 {
+                        got: v.type_name(),
+                        op: ")",
+                    })
                 }
             }
 
