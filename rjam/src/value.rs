@@ -59,7 +59,16 @@ impl Value {
         match self {
             Value::Char(c) => { s.push('\''); s.push(c.to_std_char()) }
             Value::Int(i) => { write!(s, "{}", i).unwrap() }
-            Value::Real(f) => { write!(s, "{:.}", f).unwrap() }
+            Value::Real(f) =>
+                if f.is_nan() {
+                    s.push_str("0d0/")
+                } else if *f == std::f64::INFINITY {
+                    s.push_str("1d0/")
+                } else if *f == std::f64::NEG_INFINITY {
+                    s.push_str("-1d0/")
+                } else {
+                    write!(s, "{:.}", f).unwrap()
+                }
             Value::Array(a) => {
                 // is this array a string?
                 if a.iter().all(Char::matches) {
