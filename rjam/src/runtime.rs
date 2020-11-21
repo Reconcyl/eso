@@ -55,11 +55,11 @@ impl fmt::Display for Error {
             Self::AddOverflow =>
                 write!(f, "overflow in + operator"),
             Self::Type { ex, got, op } =>
-                write!(f, "`{}` expected {}, got {}", op, ex, got),
+                write!(f, "{} expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
-                write!(f, "`{} {}` not handled", got, op),
+                write!(f, "{} {} not handled", got, op),
             Self::NotHandled2 { got1, got2, op } =>
-                write!(f, "`{} {} {}` not handled", got1, got2, op),
+                write!(f, "{} {} {} not handled", got1, got2, op),
         }
     }
 }

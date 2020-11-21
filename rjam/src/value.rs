@@ -102,14 +102,14 @@ impl Value {
         }
     }
 
-    pub const BLOCK_TYPE_NAME: &'static str = "block";
+    pub const BLOCK_TYPE_NAME: &'static str = "Block";
 
     pub fn type_name(&self) -> &'static str {
         match self {
-            Self::Char(_) => "character",
-            Self::Int(_) => "integer",
-            Self::Real(_) => "float",
-            Self::Array(_) => "array",
+            Self::Char(_) => "Character",
+            Self::Int(_) => "Integer",
+            Self::Real(_) => "Float",
+            Self::Array(_) => "Array",
             Self::Block(_) => Self::BLOCK_TYPE_NAME,
         }
     }
