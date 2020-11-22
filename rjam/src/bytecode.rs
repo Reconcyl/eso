@@ -45,5 +45,6 @@ opcodes!(pub Opcode {
     Hash    = 0x80,
     Percent = 0x81,
     And     = 0x82,
-    Plus    = 0x83,
+    Star    = 0x83,
+    Plus    = 0x84,
 });

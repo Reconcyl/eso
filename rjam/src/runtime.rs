@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{
     Char, Array, Block, Value, Hashable, FromValue,
-    Scalar, ScalarToInt, NumToReal, IntegralToChar,
+    Scalar, ScalarToInt, NumToReal, NumToInt, IntegralToChar,
 };
 use crate::utils::{get_wrapping, try_position, split_iter_one, split_iter_many};
 
@@ -16,11 +16,15 @@ pub enum Error {
     PopEmpty,
     PeekEmpty,
     PickEmpty,
+
     PopEmptyArray,
+    ReduceEmptyArray,
 
     NoBlockTruthiness,
     ModByZero,
     AddOverflow,
+    MulOverflow,
+    MulBadArrayLength,
 
     Type {
         ex: &'static str,
@@ -51,12 +55,18 @@ impl fmt::Display for Error {
                 write!(f, "attempted to pick from empty stack"),
             Self::PopEmptyArray =>
                 write!(f, "attempted to pop from empty array"),
+            Self::ReduceEmptyArray =>
+                write!(f, "attempted to reduce over empty array"),
             Self::NoBlockTruthiness =>
                 write!(f, "attempted to cast block to bool"),
             Self::ModByZero =>
                 write!(f, "% by zero"),
             Self::AddOverflow =>
                 write!(f, "overflow in + operator"),
+            Self::MulOverflow =>
+                write!(f, "overflow in * operator"),
+            Self::MulBadArrayLength =>
+                write!(f, "invalid array length in * operator"),
             Self::Type { ex, got, op } =>
                 write!(f, "{} expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
@@ -437,6 +447,91 @@ impl Runtime {
                             got1: a.type_name(),
                             got2: b.type_name(),
                             op: "&",
+                        }),
+                })
+            }
+
+            Star => {
+                let b = self.pop()?;
+                let a = self.pop()?;
+                binary_match!((a, b) {
+                    (a: i64, b: i64) => // int int *
+                        self.push(a.checked_mul(b).ok_or(Error::MulOverflow)?),
+                    (a: NumToReal, b: NumToReal) => // real num *, num real *
+                        self.push(a.0 * b.0),
+                    [a: Array, b: NumToInt] => // array num *, num array *
+                        if b.0.checked_mul(a.len() as i64)
+                            .and_then(|p| usize::try_from(p).ok())
+                            .is_none()
+                        {
+                            return Err(Error::MulBadArrayLength);
+                        } else {
+                            let mut res = Array::new();
+                            for _ in 0..b.0 {
+                                res.extend(a.iter().cloned());
+                            }
+                            self.push(res);
+                        },
+                    [a: Char, b: NumToInt] => // char num *, num char *
+                        match usize::try_from(b.0) {
+                            Err(_) => return Err(Error::MulBadArrayLength),
+                            Ok(len) => {
+                                let mut res = Array::new();
+                                for _ in 0..len {
+                                    res.push_back(a.into());
+                                }
+                                self.push(res);
+                            }
+                        },
+                    (a: Array, b: Array) => // array array *
+                        {
+                            let mut res = Array::new();
+                            for (i, elem) in a.into_iter().enumerate() {
+                                if i != 0 {
+                                    res.extend(b.iter().cloned());
+                                }
+                                if let Value::Array(elem) = elem {
+                                    res.append(elem);
+                                } else {
+                                    res.push_back(elem);
+                                }
+                            }
+                            self.push(res);
+                        },
+                    [a: Array, b: Char] => // array char *, char array *
+                        {
+                            let mut res = Array::new();
+                            for (i, elem) in a.into_iter().enumerate() {
+                                if i != 0 {
+                                    res.push_back(b.into());
+                                }
+                                if let Value::Array(elem) = elem {
+                                    res.append(elem);
+                                } else {
+                                    res.push_back(elem);
+                                }
+                            }
+                            self.push(res);
+                        },
+                    [a: Block, b: NumToInt] => // block num *, num block *
+                        for _ in 0..b.0 {
+                            self.run(&a)?; // TODO attach context information
+                        },
+                    [a: Array, b: Block] => // array block *, block array *
+                        {
+                            let mut a = a;
+                            let first = a.pop_front().ok_or(Error::ReduceEmptyArray)?;
+                            self.push(first);
+                            for val in a {
+                                self.push(val);
+                                self.run(&b)?; // TODO attach context information
+                            }
+                        },
+                    (a: Value, b: Value) => // error
+                        return Err(Error::NotHandled2 {
+                            got1: a.type_name(),
+                            got2: b.type_name(),
+                            op: "*",
                         }),
                 })
             }

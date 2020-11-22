@@ -419,6 +419,25 @@ impl FromValue for NumToReal {
     }
 }
 
+/// Matches any numeric type and converts it to an integer.
+pub struct NumToInt(pub i64);
+
+impl FromValue for NumToInt {
+    fn description() -> &'static str { "number" }
+
+    fn matches(v: &Value) -> bool {
+        matches!(v, Value::Int(_) | Value::Real(_))
+    }
+
+    fn from_value(v: Value) -> Option<Self> {
+        match v {
+            Value::Int(i) => Some(Self(i)),
+            Value::Real(x) => Some(Self(x as i64)),
+            _ => None,
+        }
+    }
+}
+
 /// Matches an integer or character and converts it to a character.
 pub struct IntegralToChar(pub Char);
 
