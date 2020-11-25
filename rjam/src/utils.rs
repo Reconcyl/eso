@@ -1,23 +1,87 @@
+use num_bigint::{BigInt, Sign};
+use num_traits::ToPrimitive as _;
+
 use std::collections::VecDeque;
 use std::cmp::Ordering;
 use std::iter::{self, FromIterator};
 use std::ops::Index;
 
-pub fn get_wrapping<T>(vals: &[T], idx: i64) -> Option<&T> {
-    idx.checked_rem_euclid(vals.len() as i64)
-        .map(|i| &vals[i as usize])
+/// Reverse an `im::Vector`.
+pub fn reverse_vector<T: Clone>(vec: &mut im::Vector<T>) {
+    for i in 0 .. vec.len() / 2 {
+        vec.swap(i, vec.len() - 1 - i);
+    }
 }
 
+pub fn get_wrapping<T>(vals: &[T], idx: BigInt) -> Option<&T> {
+    let div = vals.len();
+    if div == 0 {
+        return None;
+    }
+    let result = idx % div;
+    let wrapped_idx = if result.sign() == Sign::Minus {
+        result + div
+    } else {
+        result
+    }.to_usize().unwrap();
+    Some(&vals[wrapped_idx])
+}
+
+/// Compare `a` and `b` in a total ordering. The implementation of
+/// this is taken from `f64::total_cmp`, which is not yet stable.
 pub fn f64_total_cmp(a: f64, b: f64) -> Ordering {
-    a.partial_cmp(&b).unwrap_or_else(||
-        if !a.is_nan() {
+    let mut a = a.to_bits() as i64;
+    let mut b = b.to_bits() as i64;
+
+    a ^= (((a >> 63) as u64) >> 1) as i64;
+    b ^= (((b >> 63) as u64) >> 1) as i64;
+    a.cmp(&b)
+}
+
+/// Compare a `u32` and a `BigInt`.
+pub fn bigint_u32_cmp(a: u32, b: &BigInt) -> Ordering {
+    if let Some(b) = b.to_i64() {
+        (a as i64).cmp(&b)
+    } else if b.sign() == Sign::Minus {
+        Ordering::Greater
+    } else {
+        Ordering::Less
+    }
+}
+
+/// Compare a `f64` and a `BigInt`. Non-finite float values are
+/// considered lesser or greater than any integer, depending on
+/// their sign.
+pub fn bigint_f64_cmp(a: f64, b: &BigInt) -> Ordering {
+    // uses the same ordering scheme as `f64::total_cmp`
+    if a.is_finite() {
+        let b = b.to_f64().unwrap(); // will never panic
+        // the bigint `to_f64()` implementation uses +/-inf
+        // to indicate numbers that can't fit in a float
+        if b.is_finite() {
+            f64_total_cmp(a, b)
+        } else if b.is_sign_positive() {
             Ordering::Less
-        } else if !b.is_nan() {
-            Ordering::Greater
         } else {
-            Ordering::Equal
+            Ordering::Greater
         }
-    )
+    } else if a.is_sign_positive() {
+        // positive NaN/inf are considered more than any finite number
+        Ordering::Greater
+    } else {
+        // negative NaN/inf are considered less than any finite number
+        Ordering::Less
+    }
+}
+
+/// Convert a `BigInt` to its value mod 2^32.
+pub fn bigint_to_u32_wrapping(n: &BigInt) -> u32 {
+    let (sign, digits) = n.to_u32_digits();
+    if sign == Sign::Minus {
+        !digits[0]
+    } else {
+        digits[0]
+    }
 }
 
 pub fn try_position<T, E>(

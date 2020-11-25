@@ -1,14 +1,19 @@
+use num_bigint::Sign;
+use num_traits::{Zero as _, One as _, ToPrimitive as _};
+
 use std::collections::HashSet;
-use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{
-    Char, Array, Block, Value, Hashable, FromValue,
+    Char, Int, Array, Block, Value, Hashable, FromValue,
     Scalar, ScalarToInt, NumToReal, NumToInt, IntegralToChar,
 };
-use crate::utils::{get_wrapping, try_position, split_iter_one, split_iter_many};
+use crate::utils::{
+    reverse_vector, get_wrapping, try_position,
+    bigint_to_u32_wrapping, split_iter_one, split_iter_many
+};
 
 pub enum Error {
     BadOpcode(u8),
@@ -22,8 +27,7 @@ pub enum Error {
 
     NoBlockTruthiness,
     ModByZero,
-    AddOverflow,
-    MulOverflow,
+    ExponentTooLarge(Int),
     MulBadArrayLength,
 
     Type {
@@ -61,10 +65,8 @@ impl fmt::Display for Error {
                 write!(f, "attempted to cast block to bool"),
             Self::ModByZero =>
                 write!(f, "% by zero"),
-            Self::AddOverflow =>
-                write!(f, "overflow in + operator"),
-            Self::MulOverflow =>
-                write!(f, "overflow in * operator"),
+            Self::ExponentTooLarge(e) =>
+                write!(f, "# exponent is too large: {}", e),
             Self::MulBadArrayLength =>
                 write!(f, "invalid array length in * operator"),
             Self::Type { ex, got, op } =>
@@ -120,8 +122,8 @@ impl Runtime {
             || Error::Type { ex: T::description(), got, op })
     }
 
-    fn copy_elem(&mut self, i: i64) -> Result<(), Error> {
-        if let Some(e) = get_wrapping(&self.stack, i) {
+    fn copy_elem(&mut self, i: Int) -> Result<(), Error> {
+        if let Some(e) = get_wrapping(&self.stack, -(i + 1u8)) {
             let val = e.clone();
             self.push(val);
             Ok(())
@@ -172,20 +174,22 @@ impl Runtime {
                 self.push(consts.next().unwrap().clone());
             }
 
-            One => self.push(1),
+            One => self.push(Int::one()),
 
             LeftBracket => self.begin_array(),
             RightBracket => self.end_array(),
 
             Excl => {
                 let a = self.pop()?;
-                self.push(!a.truthiness().ok_or(Error::NoBlockTruthiness)? as i64);
+                let bool_val = !a.truthiness().ok_or(Error::NoBlockTruthiness)?;
+                self.push(Int::from(bool_val as u8));
             }
 
             Dollar => {
                 match self.pop()? {
-                    Value::Int(i) => self.copy_elem(!i)?,
-                    Value::Real(x) => self.copy_elem(!(x as i64))?,
+                    Value::Int(i) => self.copy_elem(i)?,
+                    // TODO better error on inf/nan
+                    Value::Real(x) => self.copy_elem(Int::from(x as i64))?,
                     Value::Array(mut a) => {
                         a.sort();
                         self.push(a);
@@ -227,7 +231,7 @@ impl Runtime {
             LeftParen => {
                 match self.pop()? {
                     Value::Char(c) => self.push(Char(c.0.wrapping_sub(1))),
-                    Value::Int(i) => self.push(i.wrapping_sub(1)),
+                    Value::Int(i) => self.push(i - 1),
                     Value::Real(x) => self.push(x - 1.),
                     Value::Array(mut a) => {
                         let first = a.pop_front().ok_or(Error::PopEmptyArray)?;
@@ -244,7 +248,7 @@ impl Runtime {
             RightParen => {
                 match self.pop()? {
                     Value::Char(c) => self.push(Char(c.0.wrapping_add(1))),
-                    Value::Int(i) => self.push(i.wrapping_add(1)),
+                    Value::Int(i) => self.push(i + 1),
                     Value::Real(x) => self.push(x + 1.),
                     Value::Array(mut a) => {
                         let last = a.pop_back().ok_or(Error::PopEmptyArray)?;
@@ -267,8 +271,8 @@ impl Runtime {
                 let b = self.pop()?;
                 let a = self.pop()?;
                 binary_match!((a, b) {
-                    (a: i64, b: i64) => // int int %
-                        if b == 0 {
+                    (a: Int, b: Int) => // int int %
+                        if b.is_zero() {
                             return Err(Error::ModByZero);
                         } else {
                             self.push(a % b);
@@ -288,38 +292,44 @@ impl Runtime {
                                 .map(Array::into)
                                 .collect::<Array>()),
                     [a: Array, b: ScalarToInt] => // array num %, num array %
-                        if b.0 == 0 {
-                            return Err(Error::ModByZero);
-                        } else {
+                        {
                             let mut a = a;
-                            let res = if b.0 == 1 {
-                                a
-                            } else if b.0 == -1 {
-                                // reversing using `-1 %` is a common idiom
-                                for i in 0..a.len() / 2 {
-                                    a.swap(i, a.len() - 1 - i);
+                            match b.0.sign() {
+                                Sign::NoSign => return Err(Error::ModByZero),
+                                Sign::Plus => match b.0.to_u64() {
+                                    Some(1) => {}
+                                    Some(b) => {
+                                        let mut i = 0;
+                                        a.retain(|_| {
+                                            let keep = i % b == 0;
+                                            i += 1;
+                                            keep
+                                        });
+                                    }
+                                    // no array could possibly have a length greater
+                                    // than a positive integer that doesn't fit in an
+                                    // `i64`, so we can just take the first element
+                                    None => a.truncate(1),
                                 }
-                                a
-                            } else if b.0 > 0 {
-                                let mut res = Array::new();
-                                let mut i = 0;
-                                while i < a.len() as i64 {
-                                    let elem = std::mem::take(&mut a[i as usize]);
-                                    res.push_back(elem);
-                                    i += b.0;
+                                Sign::Minus => match b.0.to_i64() {
+                                    Some(-1) => reverse_vector(&mut a),
+                                    Some(b) => {
+                                        reverse_vector(&mut a);
+                                        let mut i = 0;
+                                        a.retain(|_| {
+                                            let keep = i % -b == 0;
+                                            i += 1;
+                                            keep
+                                        });
+                                    }
+                                    // no array could possibly have a length greater
+                                    // than the magnitude of an integer that doesn't
+                                    // fit in an `i64`, so we can just take the last
+                                    // element
+                                    None => a = a.pop_back().into_iter().collect(),
                                 }
-                                res
-                            } else {
-                                let mut res = Array::new();
-                                let mut i = (a.len() - 1) as i64;
-                                while i >= 0 {
-                                    let elem = std::mem::take(&mut a[i as usize]);
-                                    res.push_back(elem);
-                                    i += b.0;
-                                }
-                                res
-                            };
-                            self.push(res);
+                            }
+                            self.push(a);
                         },
                     (a: Value, b: Value) => // error
                         return Err(Error::NotHandled2 {
@@ -339,26 +349,30 @@ impl Runtime {
                 let b = self.pop()?;
                 let a = self.pop()?;
                 binary_match!((a, b) {
-                    (a: i64, b: i64) => // int int #
-                        if let Ok(pow) = u32::try_from(b) {
-                            self.push(a.wrapping_pow(pow));
-                        } else if let Ok(pow) = i32::try_from(b) {
-                            self.push((a as f64).powi(pow));
+                    (a: Int, b: Int) => // int int #
+                        if let Some(pow) = b.to_u32() {
+                            self.push(a.pow(pow));
+                        } else if a.is_zero() {
+                            self.push(a);
+                        } else if let Some(pow) = b.to_i32() {
+                            self.push(a.to_f64().unwrap().powi(pow));
+                        } else if b.sign() == Sign::Minus {
+                            self.push(Int::zero());
                         } else {
-                            self.push((a as f64).powf(b as f64));
+                            return Err(Error::ExponentTooLarge(b));
                         },
-                    (a: f64, b: i64) => // real int #
-                        if let Ok(pow) = i32::try_from(b) {
+                    (a: f64, b: Int) => // real int #
+                        if let Some(pow) = b.to_i32() {
                             self.push((a as f64).powi(pow))
                         } else {
-                            self.push(a.powf(b as f64))
+                            self.push(a.powf(b.to_f64().unwrap()));
                         },
                     (a: NumToReal, b: f64) => // num real #
                         self.push(a.0.powf(b)),
                     [a: Scalar, b: Array] => // scalar array #, array scalar #
                         match b.iter().position(|e| e.strict_eq(&a.0)) {
-                            Some(i) => self.push(i as i64),
-                            None => self.push(-1),
+                            Some(i) => self.push(Int::from(i)),
+                            None => self.push(Int::from(-1)),
                         },
                     (a: Array, b: Array) => // array array #
                         {
@@ -374,8 +388,8 @@ impl Runtime {
                                         .all(|(ai, bi)| ai.strict_eq(bi)))
                             };
                             match idx {
-                                Some(i) => self.push(i as i64),
-                                None => self.push(-1),
+                                Some(i) => self.push(Int::from(i)),
+                                None => self.push(Int::from(-1)),
                             }
                         },
                     [a: Array, b: Block] => // array block #, block array #
@@ -388,8 +402,8 @@ impl Runtime {
                                     .ok_or(Error::NoBlockTruthiness)
                             })?
                         {
-                            Some(i) => self.push(i as i64),
-                            None => self.push(-1),
+                            Some(i) => self.push(Int::from(i)),
+                            None => self.push(Int::from(-1)),
                         },
                     (a: Value, b: Value) => // error
                         return Err(Error::NotHandled2 {
@@ -404,7 +418,7 @@ impl Runtime {
                 let b = self.pop()?;
                 let a = self.pop()?;
                 binary_match!((a, b) {
-                    (a: i64, b: i64) => // int int &
+                    (a: Int, b: Int) => // int int &
                         self.push(a & b),
                     [a: Char, b: IntegralToChar] => // int char &, char int &, char char &
                         self.push(Char(a.0 & b.0.0)),
@@ -455,27 +469,28 @@ impl Runtime {
                 let b = self.pop()?;
                 let a = self.pop()?;
                 binary_match!((a, b) {
-                    (a: i64, b: i64) => // int int *
-                        self.push(a.checked_mul(b).ok_or(Error::MulOverflow)?),
+                    (a: Int, b: Int) => // int int *
+                        self.push(a * b),
                     (a: NumToReal, b: NumToReal) => // real num *, num real *
                         self.push(a.0 * b.0),
                     [a: Array, b: NumToInt] => // array num *, num array *
-                        if b.0.checked_mul(a.len() as i64)
-                            .and_then(|p| usize::try_from(p).ok())
-                            .is_none()
-                        {
-                            return Err(Error::MulBadArrayLength);
-                        } else {
-                            let mut res = Array::new();
-                            for _ in 0..b.0 {
-                                res.extend(a.iter().cloned());
+                        if let Some(b) = b.0.to_usize() {
+                            if b.checked_mul(a.len()).is_some() {
+                                let mut res = Array::new();
+                                for _ in 0..b {
+                                    res.extend(a.iter().cloned());
+                                }
+                                self.push(res);
+                            } else {
+                                return Err(Error::MulBadArrayLength);
                             }
-                            self.push(res);
+                        } else {
+                            return Err(Error::MulBadArrayLength);
                         },
                     [a: Char, b: NumToInt] => // char num *, num char *
-                        match usize::try_from(b.0) {
-                            Err(_) => return Err(Error::MulBadArrayLength),
-                            Ok(len) => {
+                        match b.0.to_usize() {
+                            None => return Err(Error::MulBadArrayLength),
+                            Some(len) => {
                                 let mut res = Array::new();
                                 for _ in 0..len {
                                     res.push_back(a.into());
@@ -514,8 +529,14 @@ impl Runtime {
                             self.push(res);
                         },
                     [a: Block, b: NumToInt] => // block num *, num block *
-                        for _ in 0..b.0 {
-                            self.run(&a)?; // TODO attach context information
+                        if let Some(b) = b.0.to_isize() {
+                            for _ in 0..b {
+                                self.run(&a)?; // TODO attach context information
+                            }
+                        } else {
+                            loop {
+                                self.run(&a)?; // TODO attach context information
+                            }
                         },
                     [a: Array, b: Block] => // array block *, block array *
                         {
@@ -543,9 +564,9 @@ impl Runtime {
                     (a: Char, b: Char) => // char char +
                         self.push(im::vector![a.into(), b.into()]),
                     [a: Char, b: ScalarToInt] => // char num +, num char +
-                        self.push(Char(a.0.wrapping_add(b.0 as u32))),
-                    (a: i64, b: i64) => // int int +
-                        self.push(a.checked_add(b).ok_or(Error::AddOverflow)?),
+                        self.push(Char(a.0.wrapping_add(bigint_to_u32_wrapping(&b.0)))),
+                    (a: Int, b: Int) => // int int +
+                        self.push(a + b),
                     [a: f64, b: NumToReal] => // int num +, num int +
                         self.push(a + b.0),
                     (a: Array, b: Array) => // arr arr +

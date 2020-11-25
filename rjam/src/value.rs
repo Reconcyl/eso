@@ -1,10 +1,16 @@
+pub use num_bigint::BigInt as Int;
+use num_traits::{Zero as _, ToPrimitive as _};
+
 use std::cmp::Ordering;
 use std::fmt::Write as _;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::bytecode::Bytecode;
-use crate::utils::f64_total_cmp;
+use crate::utils::{
+    f64_total_cmp, bigint_u32_cmp, bigint_f64_cmp,
+    bigint_to_u32_wrapping,
+};
 
 /// A (possibly invalid) Unicode code point. We use this instead of
 /// `char` so that character arithmetic never results in an error.
@@ -24,7 +30,7 @@ pub type Array = im::Vector<Value>;
 #[derive(Clone)]
 pub enum Value {
     Char(Char),
-    Int(i64), // TODO: use bigint
+    Int(Int),
     Real(f64),
     Array(Array),
     Block(Block),
@@ -48,7 +54,7 @@ impl Value {
     pub fn truthiness(&self) -> Option<bool> {
         match *self {
             Value::Char(c) => Some(c.0 > 0),
-            Value::Int(i) => Some(i != 0),
+            Value::Int(ref i) => Some(!i.is_zero()),
             Value::Real(x) => Some(x != 0.0),
             Value::Array(ref a) => Some(!a.is_empty()),
             Value::Block(_) => None,
@@ -117,7 +123,7 @@ impl Value {
 
 impl Default for Value {
     fn default() -> Self {
-        Self::Int(0)
+        Self::Int(Int::zero())
     }
 }
 
@@ -129,15 +135,15 @@ impl Ord for Value {
             // scalar types are comparable with each other
 
             (&Char(a), &Char(b)) => a.0.cmp(&b.0),
-            (&Char(a), &Int(b)) => (a.0 as i64).cmp(&b),
+            (&Char(a), &Int(ref b)) => bigint_u32_cmp(a.0, b),
             (&Char(a), &Real(b)) => f64_total_cmp(a.0 as f64, b),
 
-            (&Int(a), &Char(b)) => a.cmp(&(b.0 as i64)),
-            (&Int(a), &Int(b)) => a.cmp(&b),
-            (&Int(a), &Real(b)) => f64_total_cmp(a as f64, b),
+            (&Int(ref a), &Char(b)) => bigint_u32_cmp(b.0, a).reverse(),
+            (&Int(ref a), &Int(ref b)) => a.cmp(&b),
+            (&Int(ref a), &Real(b)) => bigint_f64_cmp(b, &a).reverse(),
 
             (&Real(a), &Char(b)) => f64_total_cmp(a, b.0 as f64),
-            (&Real(a), &Int(b)) => f64_total_cmp(a, b as f64),
+            (&Real(a), &Int(ref b)) => bigint_f64_cmp(a, &b),
             (&Real(a), &Real(b)) => f64_total_cmp(a, b),
 
             // blocks are greater than all other types but equal to each other
@@ -248,7 +254,7 @@ impl Into<Value> for Char {
     }
 }
 
-impl Into<Value> for i64 {
+impl Into<Value> for Int {
     fn into(self) -> Value {
         Value::Int(self)
     }
@@ -293,7 +299,7 @@ impl FromValue for Char {
     }
 }
 
-impl FromValue for i64 {
+impl FromValue for Int {
     fn description() -> &'static str { "integer" }
 
     fn matches(v: &Value) -> bool {
@@ -381,7 +387,7 @@ impl FromValue for Scalar {
 }
 
 /// Matches any scalar type and converts it to an integer.
-pub struct ScalarToInt(pub i64);
+pub struct ScalarToInt(pub Int);
 
 impl FromValue for ScalarToInt {
     fn description() -> &'static str { "char or number" }
@@ -392,9 +398,10 @@ impl FromValue for ScalarToInt {
 
     fn from_value(v: Value) -> Option<Self> {
         match v {
-            Value::Char(c) => Some(Self(c.0 as i64)),
+            Value::Char(c) => Some(Self(Int::from(c.0))),
             Value::Int(i) => Some(Self(i)),
-            Value::Real(x) => Some(Self(x as i64)),
+            // TODO better error on inf/nan
+            Value::Real(x) => Some(Self(Int::from(x as i64))),
             _ => None,
         }
     }
@@ -412,7 +419,7 @@ impl FromValue for NumToReal {
 
     fn from_value(v: Value) -> Option<Self> {
         match v {
-            Value::Int(i) => Some(Self(i as f64)),
+            Value::Int(i) => i.to_f64().map(Self), // this cannot fail
             Value::Real(x) => Some(Self(x)),
             _ => None,
         }
@@ -420,7 +427,7 @@ impl FromValue for NumToReal {
 }
 
 /// Matches any numeric type and converts it to an integer.
-pub struct NumToInt(pub i64);
+pub struct NumToInt(pub Int);
 
 impl FromValue for NumToInt {
     fn description() -> &'static str { "number" }
@@ -432,7 +439,8 @@ impl FromValue for NumToInt {
     fn from_value(v: Value) -> Option<Self> {
         match v {
             Value::Int(i) => Some(Self(i)),
-            Value::Real(x) => Some(Self(x as i64)),
+            // TODO better error on inf/nan
+            Value::Real(x) => Some(Self(Int::from(x as i64))),
             _ => None,
         }
     }
@@ -451,7 +459,7 @@ impl FromValue for IntegralToChar {
     fn from_value(v: Value) -> Option<Self> {
         match v {
             Value::Char(c) => Some(Self(c)),
-            Value::Int(i) => Some(Self(Char(i as u32))),
+            Value::Int(i) => Some(Self(Char(bigint_to_u32_wrapping(&i)))),
             _ => None,
         }
     }
