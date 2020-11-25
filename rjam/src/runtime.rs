@@ -18,19 +18,18 @@ use crate::utils::{
 pub enum Error {
     BadOpcode(u8),
 
-    PopEmpty,
     PeekEmpty,
     PickEmpty,
+    PopEmpty,
 
-    PopEmptyArray,
-    ReduceEmptyArray,
-
-    NoBlockTruthiness,
-    ModByZero,
     ExponentTooLarge(Int),
+    ModByZero,
     MulBadArrayLength,
+    NoBlockTruthiness,
+    PopEmptyArray,
     RangeNegative,
     RangeTooLarge,
+    ReduceEmptyArray,
 
     Type {
         ex: &'static str,
@@ -53,28 +52,28 @@ impl fmt::Display for Error {
         match self {
             Self::BadOpcode(b) =>
                 write!(f, "encountered invalid opcode `0x{:02x}` (this is a bug)", b),
-            Self::PopEmpty =>
-                write!(f, "attempted to pop from empty stack"),
             Self::PeekEmpty =>
                 write!(f, "attempted to peek from empty stack"),
             Self::PickEmpty =>
                 write!(f, "attempted to pick from empty stack"),
-            Self::PopEmptyArray =>
-                write!(f, "attempted to pop from empty array"),
-            Self::ReduceEmptyArray =>
-                write!(f, "attempted to reduce over empty array"),
-            Self::NoBlockTruthiness =>
-                write!(f, "attempted to cast block to bool"),
-            Self::ModByZero =>
-                write!(f, "% by zero"),
+            Self::PopEmpty =>
+                write!(f, "attempted to pop from empty stack"),
             Self::ExponentTooLarge(e) =>
                 write!(f, "exponent is too large: {}", e),
+            Self::ModByZero =>
+                write!(f, "% by zero"),
             Self::MulBadArrayLength =>
                 write!(f, "cannot construct array of the specified length"),
+            Self::NoBlockTruthiness =>
+                write!(f, "attempted to cast block to bool"),
+            Self::PopEmptyArray =>
+                write!(f, "attempted to pop from empty array"),
             Self::RangeNegative =>
                 write!(f, "cannot construct negative range"),
             Self::RangeTooLarge =>
                 write!(f, "number is too large for range"),
+            Self::ReduceEmptyArray =>
+                write!(f, "attempted to reduce over empty array"),
             Self::Type { ex, got, op } =>
                 write!(f, "{} expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
