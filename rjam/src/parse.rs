@@ -171,6 +171,7 @@ impl ParseState<'_> {
             b')' => self.add_opcode(RightParen),
             b'*' => self.add_opcode(Star),
             b'+' => self.add_opcode(Plus),
+            b',' => self.add_opcode(Comma),
             b'1' => self.add_lit(Value::Int(BigInt::one())),
             b'[' => self.add_opcode(LeftBracket),
             b']' => self.add_opcode(RightBracket),

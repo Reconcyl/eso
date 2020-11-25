@@ -11,7 +11,7 @@ use crate::value::{
     Scalar, ScalarToInt, NumToReal, NumToInt, IntegralToChar,
 };
 use crate::utils::{
-    reverse_vector, get_wrapping, try_position,
+    reverse_vector, get_wrapping, try_position, try_retain,
     bigint_to_u32_wrapping, split_iter_one, split_iter_many
 };
 
@@ -29,6 +29,8 @@ pub enum Error {
     ModByZero,
     ExponentTooLarge(Int),
     MulBadArrayLength,
+    RangeNegative,
+    RangeTooLarge,
 
     Type {
         ex: &'static str,
@@ -69,6 +71,10 @@ impl fmt::Display for Error {
                 write!(f, "exponent is too large: {}", e),
             Self::MulBadArrayLength =>
                 write!(f, "cannot construct array of the specified length"),
+            Self::RangeNegative =>
+                write!(f, "cannot construct negative range"),
+            Self::RangeTooLarge =>
+                write!(f, "number is too large for range"),
             Self::Type { ex, got, op } =>
                 write!(f, "{} expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
@@ -178,6 +184,7 @@ impl Runtime {
             Dollar => self.op_dollar(),
             LeftParen => self.op_left_paren(),
             RightParen => self.op_right_paren(),
+            Comma => self.op_comma(),
             Underscore => self.op_underscore(),
             LowerA => self.op_lower_a(),
 
@@ -272,6 +279,43 @@ impl Runtime {
                 got: v.type_name(),
                 op: ")",
             })
+        }
+        Ok(())
+    }
+
+    fn op_comma(&mut self) -> Result<(), Error> {
+        match self.pop()? {
+            Value::Char(c) =>
+                self.push((0..c.0)
+                    .map(|c| Value::Char(Char(c)))
+                    .collect::<Array>()),
+            Value::Int(i) =>
+                if let Some(i) = i.to_u64() {
+                    self.push((0..i)
+                        .map(|j| Int::from(j).into())
+                        .collect::<Array>())
+                } else if i.sign() == Sign::Minus {
+                    return Err(Error::RangeNegative);
+                } else {
+                    return Err(Error::RangeTooLarge);
+                }
+            Value::Real(x) =>
+                // TODO better error on inf/nan
+                self.push((0..x as u64)
+                    .map(|j| Int::from(j).into())
+                    .collect::<Array>()),
+            Value::Array(a) =>
+                self.push(Int::from(a.len())),
+            Value::Block(b) => {
+                let elems: Array = self.pop_typed(",")?;
+                let filtered = try_retain(elems, |elem| {
+                    self.push(elem.clone());
+                    self.run(&b)?; // TODO attach context information
+                    self.pop()?.truthiness()
+                        .ok_or(Error::NoBlockTruthiness)
+                })?;
+                self.push(filtered);
+            }
         }
         Ok(())
     }
@@ -380,7 +424,7 @@ impl Runtime {
                 },
             (a: f64, b: Int) => // real int #
                 if let Some(pow) = b.to_i32() {
-                    self.push((a as f64).powi(pow))
+                    self.push(a.powi(pow))
                 } else {
                     self.push(a.powf(b.to_f64().unwrap()));
                 },

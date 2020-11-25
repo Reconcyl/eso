@@ -96,6 +96,29 @@ pub fn try_position<T, E>(
     Ok(None)
 }
 
+pub fn try_retain<T: Clone, E>(
+    mut vec: im::Vector<T>,
+    mut test: impl FnMut(&T) -> Result<bool, E>
+) -> Result<im::Vector<T>, E> {
+    let mut err = None;
+    vec.retain(|elem|
+        if err.is_some() {
+            false
+        } else {
+            match test(elem) {
+                Ok(b) => b,
+                Err(e) => {
+                    err = Some(e);
+                    false
+                }
+            }
+        });
+    match err {
+        None => Ok(vec),
+        Some(e) => Err(e),
+    }
+}
+
 /// Split an iterator of elements on a particular
 /// element and return a new iterator of components.
 pub fn split_iter_one<

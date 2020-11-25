@@ -38,6 +38,7 @@ opcodes!(pub enum Opcode {
     Dollar,
     LeftParen,
     RightParen,
+    Comma,
     Underscore,
     LowerA,
 
