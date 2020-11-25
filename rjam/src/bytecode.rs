@@ -7,18 +7,19 @@ pub struct Bytecode {
 }
 
 macro_rules! opcodes {
-    ($v:vis $name:ident {
-        $($variant:ident = $val:expr,)*
+    ($v:vis enum $name:ident {
+        $($variant:ident $(= $val:expr)?,)*
     }) => {
         #[repr(u8)]
         $v enum $name {
-            $($variant = $val,)*
+            $($variant $(= $val)?,)*
         }
 
         impl $name {
             pub fn from_byte(byte: u8) -> Option<Self> {
                 match byte {
-                    $($val => Some(Self::$variant),)*
+                    $(b if b == Self::$variant as u8
+                        => Some(Self::$variant),)*
                     _ => None
                 }
             }
@@ -26,24 +27,24 @@ macro_rules! opcodes {
     }
 }
 
-opcodes!(pub Opcode {
+opcodes!(pub enum Opcode {
     // Miscellaneous/nullary opreators
-    Lit          = 0x00,
-    LeftBracket  = 0x01,
-    RightBracket = 0x02,
+    Lit = 0x00,
+    LeftBracket,
+    RightBracket,
 
     // Unary operators
-    Excl       = 0x40,
-    Dollar     = 0x41,
-    LeftParen  = 0x42,
-    RightParen = 0x43,
-    Underscore = 0x44,
-    LowerA     = 0x45,
+    Excl = 0x40,
+    Dollar,
+    LeftParen,
+    RightParen,
+    Underscore,
+    LowerA,
 
     // Binary operators
-    Hash    = 0x80,
-    Percent = 0x81,
-    And     = 0x82,
-    Star    = 0x83,
-    Plus    = 0x84,
+    Hash = 0x80,
+    Percent,
+    And,
+    Star,
+    Plus,
 });
