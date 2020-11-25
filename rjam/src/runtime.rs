@@ -66,7 +66,7 @@ impl fmt::Display for Error {
             Self::ModByZero =>
                 write!(f, "% by zero"),
             Self::ExponentTooLarge(e) =>
-                write!(f, "# exponent is too large: {}", e),
+                write!(f, "exponent is too large: {}", e),
             Self::MulBadArrayLength =>
                 write!(f, "invalid array length in * operator"),
             Self::Type { ex, got, op } =>
