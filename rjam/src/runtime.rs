@@ -68,7 +68,7 @@ impl fmt::Display for Error {
             Self::ExponentTooLarge(e) =>
                 write!(f, "exponent is too large: {}", e),
             Self::MulBadArrayLength =>
-                write!(f, "invalid array length in * operator"),
+                write!(f, "cannot construct array of the specified length"),
             Self::Type { ex, got, op } =>
                 write!(f, "{} expected {}, got {}", op, ex, got),
             Self::NotHandled1 { got, op } =>
