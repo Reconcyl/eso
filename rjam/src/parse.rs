@@ -4,7 +4,7 @@ use num_traits::One as _;
 use std::fmt;
 
 use crate::bytecode::{Bytecode, Opcode};
-use crate::value::{Array, Value};
+use crate::value::{Array, Block, Value};
 
 /// An error encountered while parsing.
 pub enum Error {
@@ -83,12 +83,15 @@ impl ParseState<'_> {
     }
 
     /// Return the next byte in the input.
+    fn peek_byte(&mut self) -> Option<u8> {
+        self.code.get(self.pos).copied()
+    }
+
+    /// Return the next byte in the input and advance the cursor past it.
     fn next_byte(&mut self) -> Option<u8> {
-        let res = self.code.get(self.pos).copied();
-        if res.is_some() {
-            self.pos += 1;
-        }
-        res
+        let res = self.peek_byte()?;
+        self.pos += 1;
+        Some(res)
     }
 
     /// Decode a UTF-8 character from the input.
@@ -152,7 +155,14 @@ impl ParseState<'_> {
     /// Decode the next instruction.
     fn add_ins(&mut self) -> Result<(), Error> {
         use Opcode::*;
-        match self.next_byte().unwrap() {
+        let byte = match self.next_byte() {
+            Some(b) => b,
+            None => return Err(Error::Unexpected {
+                ex: Expect::Instr,
+                got: Outcome::Eof,
+            })
+        };
+        match byte {
             b'\t' | b'\n' | b'\r' | b' ' => {}
             b'!' => self.add_opcode(Excl),
             b'"' => {
@@ -177,6 +187,18 @@ impl ParseState<'_> {
             b']' => self.add_opcode(RightBracket),
             b'_' => self.add_opcode(Underscore),
             b'a' => self.add_opcode(LowerA),
+            b'{' => {
+                let mut sub_state = ParseState {
+                    code: self.code,
+                    pos: self.pos,
+                    bytecode: Bytecode::new(),
+                };
+                while sub_state.peek_byte() != Some(b'}') {
+                    sub_state.add_ins()?;
+                }
+                self.pos = sub_state.pos + 1;
+                self.add_lit(Value::Block(Block::new(sub_state.bytecode)));
+            }
             b => return Err(Error::Unexpected {
                 ex: Expect::Instr,
                 got: Outcome::Byte(b),
@@ -191,10 +213,7 @@ pub fn parse(code: &[u8]) -> Result<Bytecode, Error> {
     let mut state = ParseState {
         code,
         pos: 0,
-        bytecode: Bytecode {
-            bytes: Vec::new(),
-            consts: Vec::new(),
-        }
+        bytecode: Bytecode::new(),
     };
     while state.not_eof() {
         state.add_ins()?;

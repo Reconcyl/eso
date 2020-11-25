@@ -6,6 +6,15 @@ pub struct Bytecode {
     pub consts: Vec<Value>,
 }
 
+impl Bytecode {
+    pub fn new() -> Self {
+        Self {
+            bytes: Vec::new(),
+            consts: Vec::new(),
+        }
+    }
+}
+
 macro_rules! opcodes {
     ($v:vis enum $name:ident {
         $($variant:ident $(= $val:expr)?,)*
