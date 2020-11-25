@@ -29,9 +29,8 @@ macro_rules! opcodes {
 opcodes!(pub Opcode {
     // Miscellaneous/nullary opreators
     Lit          = 0x00,
-    One          = 0x01,
-    LeftBracket  = 0x02,
-    RightBracket = 0x03,
+    LeftBracket  = 0x01,
+    RightBracket = 0x02,
 
     // Unary operators
     Excl       = 0x40,

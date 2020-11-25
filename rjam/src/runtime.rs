@@ -1,5 +1,5 @@
 use num_bigint::Sign;
-use num_traits::{Zero as _, One as _, ToPrimitive as _};
+use num_traits::{Zero as _, ToPrimitive as _};
 
 use std::collections::HashSet;
 use std::fmt;
@@ -171,7 +171,6 @@ impl Runtime {
         use Opcode::*;
         match op {
             Lit => { self.push(consts.next().unwrap().clone()); Ok(()) }
-            One => { self.push(Int::one()); Ok(()) }
             LeftBracket => { self.begin_array(); Ok(()) }
             RightBracket => { self.end_array(); Ok(()) }
 

@@ -1,3 +1,6 @@
+use num_bigint::BigInt;
+use num_traits::One as _;
+
 use std::fmt;
 
 use crate::bytecode::{Bytecode, Opcode};
@@ -168,7 +171,7 @@ impl ParseState<'_> {
             b')' => self.add_opcode(RightParen),
             b'*' => self.add_opcode(Star),
             b'+' => self.add_opcode(Plus),
-            b'1' => self.add_opcode(One),
+            b'1' => self.add_lit(Value::Int(BigInt::one())),
             b'[' => self.add_opcode(LeftBracket),
             b']' => self.add_opcode(RightBracket),
             b'_' => self.add_opcode(Underscore),
