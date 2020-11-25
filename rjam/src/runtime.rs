@@ -23,6 +23,7 @@ pub enum Error {
     PopEmpty,
 
     ExponentTooLarge(Int),
+    IntOfInf,
     ModByZero,
     MulBadArrayLength,
     NoBlockTruthiness,
@@ -60,6 +61,8 @@ impl fmt::Display for Error {
                 write!(f, "attempted to pop from empty stack"),
             Self::ExponentTooLarge(e) =>
                 write!(f, "exponent is too large: {}", e),
+            Self::IntOfInf =>
+                write!(f, "non-finite floats cannot be coerced to int"),
             Self::ModByZero =>
                 write!(f, "% by zero"),
             Self::MulBadArrayLength =>
@@ -205,8 +208,12 @@ impl Runtime {
     fn op_dollar(&mut self) -> Result<(), Error> {
         match self.pop()? {
             Value::Int(i) => self.copy_elem(i)?,
-            // TODO better error on inf/nan
-            Value::Real(x) => self.copy_elem(Int::from(x as i64))?,
+            Value::Real(x) =>
+                if x.is_finite() {
+                    self.copy_elem(Int::from(x as i64))?;
+                } else {
+                    return Err(Error::IntOfInf);
+                }
             Value::Array(mut a) => {
                 a.sort();
                 self.push(a);
@@ -299,10 +306,13 @@ impl Runtime {
                     return Err(Error::RangeTooLarge);
                 }
             Value::Real(x) =>
-                // TODO better error on inf/nan
-                self.push((0..x as u64)
-                    .map(|j| Int::from(j).into())
-                    .collect::<Array>()),
+                if x.is_finite() {
+                    self.push((0..x as u64)
+                        .map(|j| Int::from(j).into())
+                        .collect::<Array>())
+                } else {
+                    return Err(Error::IntOfInf);
+                }
             Value::Array(a) =>
                 self.push(Int::from(a.len())),
             Value::Block(b) => {
@@ -358,9 +368,10 @@ impl Runtime {
             [a: Array, b: ScalarToInt] => // array num %, num array %
                 {
                     let mut a = a;
-                    match b.0.sign() {
+                    let b = b.0.ok_or(Error::IntOfInf)?;
+                    match b.sign() {
                         Sign::NoSign => return Err(Error::ModByZero),
-                        Sign::Plus => match b.0.to_u64() {
+                        Sign::Plus => match b.to_u64() {
                             Some(1) => {}
                             Some(b) => {
                                 let mut i = 0;
@@ -375,7 +386,7 @@ impl Runtime {
                             // `i64`, so we can just take the first element
                             None => a.truncate(1),
                         }
-                        Sign::Minus => match b.0.to_i64() {
+                        Sign::Minus => match b.to_i64() {
                             Some(-1) => reverse_vector(&mut a),
                             Some(b) => {
                                 reverse_vector(&mut a);
@@ -536,21 +547,18 @@ impl Runtime {
             (a: NumToReal, b: NumToReal) => // real num *, num real *
                 self.push(a.0 * b.0),
             [a: Array, b: NumToInt] => // array num *, num array *
-                if let Some(b) = b.0.to_usize() {
-                    if b.checked_mul(a.len()).is_some() {
+                match b.0.ok_or(Error::IntOfInf)?.to_usize() {
+                    Some(b) if b.checked_mul(a.len()).is_some() => {
                         let mut res = Array::new();
                         for _ in 0..b {
                             res.extend(a.iter().cloned());
                         }
                         self.push(res);
-                    } else {
-                        return Err(Error::MulBadArrayLength);
                     }
-                } else {
-                    return Err(Error::MulBadArrayLength);
+                    _ => return Err(Error::MulBadArrayLength),
                 },
             [a: Char, b: NumToInt] => // char num *, num char *
-                match b.0.to_usize() {
+                match b.0.ok_or(Error::IntOfInf)?.to_usize() {
                     None => return Err(Error::MulBadArrayLength),
                     Some(len) => {
                         let mut res = Array::new();
@@ -591,7 +599,7 @@ impl Runtime {
                     self.push(res);
                 },
             [a: Block, b: NumToInt] => // block num *, num block *
-                if let Some(b) = b.0.to_isize() {
+                if let Some(b) = b.0.ok_or(Error::IntOfInf)?.to_isize() {
                     for _ in 0..b {
                         self.run(&a)?; // TODO attach context information
                     }
@@ -627,7 +635,10 @@ impl Runtime {
             (a: Char, b: Char) => // char char +
                 self.push(im::vector![a.into(), b.into()]),
             [a: Char, b: ScalarToInt] => // char num +, num char +
-                self.push(Char(a.0.wrapping_add(bigint_to_u32_wrapping(&b.0)))),
+                {
+                    let b = bigint_to_u32_wrapping(&b.0.ok_or(Error::IntOfInf)?);
+                    self.push(Char(a.0.wrapping_add(b)));
+                },
             (a: Int, b: Int) => // int int +
                 self.push(a + b),
             [a: f64, b: NumToReal] => // int num +, num int +

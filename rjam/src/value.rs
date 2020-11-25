@@ -387,7 +387,7 @@ impl FromValue for Scalar {
 }
 
 /// Matches any scalar type and converts it to an integer.
-pub struct ScalarToInt(pub Int);
+pub struct ScalarToInt(pub Option<Int>);
 
 impl FromValue for ScalarToInt {
     fn description() -> &'static str { "char or number" }
@@ -398,10 +398,13 @@ impl FromValue for ScalarToInt {
 
     fn from_value(v: Value) -> Option<Self> {
         match v {
-            Value::Char(c) => Some(Self(Int::from(c.0))),
-            Value::Int(i) => Some(Self(i)),
-            // TODO better error on inf/nan
-            Value::Real(x) => Some(Self(Int::from(x as i64))),
+            Value::Char(c) => Some(Self(Some(Int::from(c.0)))),
+            Value::Int(i) => Some(Self(Some(i))),
+            Value::Real(x) => Some(Self(if x.is_finite() {
+                Some(Int::from(x as i64))
+            } else {
+                None
+            })),
             _ => None,
         }
     }
@@ -427,7 +430,7 @@ impl FromValue for NumToReal {
 }
 
 /// Matches any numeric type and converts it to an integer.
-pub struct NumToInt(pub Int);
+pub struct NumToInt(pub Option<Int>);
 
 impl FromValue for NumToInt {
     fn description() -> &'static str { "number" }
@@ -438,9 +441,12 @@ impl FromValue for NumToInt {
 
     fn from_value(v: Value) -> Option<Self> {
         match v {
-            Value::Int(i) => Some(Self(i)),
-            // TODO better error on inf/nan
-            Value::Real(x) => Some(Self(Int::from(x as i64))),
+            Value::Int(i) => Some(Self(Some(i))),
+            Value::Real(x) => Some(Self(if x.is_finite() {
+                Some(Int::from(x as i64))
+            } else {
+                None
+            })),
             _ => None,
         }
     }
