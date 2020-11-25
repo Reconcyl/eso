@@ -170,466 +170,485 @@ impl Runtime {
     ) -> Result<(), Error> {
         use Opcode::*;
         match op {
-            Lit => {
-                self.push(consts.next().unwrap().clone());
-            }
+            Lit => { self.push(consts.next().unwrap().clone()); Ok(()) }
+            One => { self.push(Int::one()); Ok(()) }
+            LeftBracket => { self.begin_array(); Ok(()) }
+            RightBracket => { self.end_array(); Ok(()) }
 
-            One => self.push(Int::one()),
+            Excl => self.op_excl(),
+            Dollar => self.op_dollar(),
+            LeftParen => self.op_left_paren(),
+            RightParen => self.op_right_paren(),
+            Underscore => self.op_underscore(),
+            LowerA => self.op_lower_a(),
 
-            LeftBracket => self.begin_array(),
-            RightBracket => self.end_array(),
+            Percent => self.op_percent(),
+            Hash => self.op_hash(),
+            And => self.op_and(),
+            Star => self.op_star(),
+            Plus => self.op_plus(),
+        }
+    }
 
-            Excl => {
-                let a = self.pop()?;
-                let bool_val = !a.truthiness().ok_or(Error::NoBlockTruthiness)?;
-                self.push(Int::from(bool_val as u8));
-            }
+    fn op_excl(&mut self) -> Result<(), Error> {
+        let a = self.pop()?;
+        let bool_val = !a.truthiness().ok_or(Error::NoBlockTruthiness)?;
+        self.push(Int::from(bool_val as u8));
+        Ok(())
+    }
 
-            Dollar => {
-                match self.pop()? {
-                    Value::Int(i) => self.copy_elem(i)?,
-                    // TODO better error on inf/nan
-                    Value::Real(x) => self.copy_elem(Int::from(x as i64))?,
-                    Value::Array(mut a) => {
-                        a.sort();
-                        self.push(a);
-                    }
-                    Value::Block(b) => {
-                        // this algorithm is mostly borrowed from
-                        // `<&mut [T]>::sort_by_cached_key()`
-                        let mut a = self.pop_typed::<Array>("$")?;
-                        // evaluate the block for each element in the array
-                        let mut indices = a.iter().enumerate()
-                            .map(|(i, e)| {
-                                self.push(e.clone());
-                                self.run(&b)?; // TODO attach context information
-                                Ok((self.pop()?, i))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        // sort the indices to get the correct permutation
-                        // (stability isn't relevant because the second
-                        // elements of the tuple are always distinct)
-                        indices.sort_unstable();
-                        // move elements in `a` according to this permutation
-                        for i in 0..a.len() {
-                            let mut j = indices[i].1;
-                            while j < i {
-                                j = indices[j].1;
-                            }
-                            indices[i].1 = j;
-                            a.swap(i, j);
-                        }
-                        self.push(a);
-                    }
-                    v => return Err(Error::NotHandled1 {
-                        got: v.type_name(),
-                        op: "$",
-                    }),
-                }
-            }
-
-            LeftParen => {
-                match self.pop()? {
-                    Value::Char(c) => self.push(Char(c.0.wrapping_sub(1))),
-                    Value::Int(i) => self.push(i - 1),
-                    Value::Real(x) => self.push(x - 1.),
-                    Value::Array(mut a) => {
-                        let first = a.pop_front().ok_or(Error::PopEmptyArray)?;
-                        self.push(a);
-                        self.push(first);
-                    }
-                    v => return Err(Error::NotHandled1 {
-                        got: v.type_name(),
-                        op: "(",
-                    })
-                }
-            }
-
-            RightParen => {
-                match self.pop()? {
-                    Value::Char(c) => self.push(Char(c.0.wrapping_add(1))),
-                    Value::Int(i) => self.push(i + 1),
-                    Value::Real(x) => self.push(x + 1.),
-                    Value::Array(mut a) => {
-                        let last = a.pop_back().ok_or(Error::PopEmptyArray)?;
-                        self.push(a);
-                        self.push(last);
-                    }
-                    v => return Err(Error::NotHandled1 {
-                        got: v.type_name(),
-                        op: ")",
-                    })
-                }
-            }
-
-            Underscore => {
-                let a = self.peek()?.clone();
+    fn op_dollar(&mut self) -> Result<(), Error> {
+        match self.pop()? {
+            Value::Int(i) => self.copy_elem(i)?,
+            // TODO better error on inf/nan
+            Value::Real(x) => self.copy_elem(Int::from(x as i64))?,
+            Value::Array(mut a) => {
+                a.sort();
                 self.push(a);
             }
-
-            Percent => {
-                let b = self.pop()?;
-                let a = self.pop()?;
-                binary_match!((a, b) {
-                    (a: Int, b: Int) => // int int %
-                        if b.is_zero() {
-                            return Err(Error::ModByZero);
-                        } else {
-                            self.push(a % b);
-                        },
-                    (a: NumToReal, b: NumToReal) => // real num %, num real %
-                        self.push(a.0 % b.0),
-                    (a: Array, b: Array) => // array array %
-                        self.push(
-                            split_iter_many(&mut a.into_iter(), &b, b.len())
-                                .filter(|part: &Array| !part.is_empty())
-                                .map(Array::into)
-                                .collect::<Array>()),
-                    [a: Array, b: Char] => // array char %, char array %
-                        self.push(
-                            split_iter_one(&mut a.into_iter(), &b.into())
-                                .filter(|part: &Array| !part.is_empty())
-                                .map(Array::into)
-                                .collect::<Array>()),
-                    [a: Array, b: ScalarToInt] => // array num %, num array %
-                        {
-                            let mut a = a;
-                            match b.0.sign() {
-                                Sign::NoSign => return Err(Error::ModByZero),
-                                Sign::Plus => match b.0.to_u64() {
-                                    Some(1) => {}
-                                    Some(b) => {
-                                        let mut i = 0;
-                                        a.retain(|_| {
-                                            let keep = i % b == 0;
-                                            i += 1;
-                                            keep
-                                        });
-                                    }
-                                    // no array could possibly have a length greater
-                                    // than a positive integer that doesn't fit in an
-                                    // `i64`, so we can just take the first element
-                                    None => a.truncate(1),
-                                }
-                                Sign::Minus => match b.0.to_i64() {
-                                    Some(-1) => reverse_vector(&mut a),
-                                    Some(b) => {
-                                        reverse_vector(&mut a);
-                                        let mut i = 0;
-                                        a.retain(|_| {
-                                            let keep = i % -b == 0;
-                                            i += 1;
-                                            keep
-                                        });
-                                    }
-                                    // no array could possibly have a length greater
-                                    // than the magnitude of an integer that doesn't
-                                    // fit in an `i64`, so we can just take the last
-                                    // element
-                                    None => a = a.pop_back().into_iter().collect(),
-                                }
-                            }
-                            self.push(a);
-                        },
-                    (a: Value, b: Value) => // error
-                        return Err(Error::NotHandled2 {
-                            got1: a.type_name(),
-                            got2: b.type_name(),
-                            op: "%",
-                        }),
-                })
+            Value::Block(b) => {
+                // this algorithm is mostly borrowed from
+                // `<&mut [T]>::sort_by_cached_key()`
+                let mut a = self.pop_typed::<Array>("$")?;
+                // evaluate the block for each element in the array
+                let mut indices = a.iter().enumerate()
+                    .map(|(i, e)| {
+                        self.push(e.clone());
+                        self.run(&b)?; // TODO attach context information
+                        Ok((self.pop()?, i))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                // sort the indices to get the correct permutation
+                // (stability isn't relevant because the second
+                // elements of the tuple are always distinct)
+                indices.sort_unstable();
+                // move elements in `a` according to this permutation
+                for i in 0..a.len() {
+                    let mut j = indices[i].1;
+                    while j < i {
+                        j = indices[j].1;
+                    }
+                    indices[i].1 = j;
+                    a.swap(i, j);
+                }
+                self.push(a);
             }
-
-            LowerA => {
-                let a = self.pop()?;
-                self.push(im::vector![a]);
-            }
-
-            Hash => {
-                let b = self.pop()?;
-                let a = self.pop()?;
-                binary_match!((a, b) {
-                    (a: Int, b: Int) => // int int #
-                        if let Some(pow) = b.to_u32() {
-                            self.push(a.pow(pow));
-                        } else if a.is_zero() {
-                            self.push(a);
-                        } else if let Some(pow) = b.to_i32() {
-                            self.push(a.to_f64().unwrap().powi(pow));
-                        } else if b.sign() == Sign::Minus {
-                            self.push(Int::zero());
-                        } else {
-                            return Err(Error::ExponentTooLarge(b));
-                        },
-                    (a: f64, b: Int) => // real int #
-                        if let Some(pow) = b.to_i32() {
-                            self.push((a as f64).powi(pow))
-                        } else {
-                            self.push(a.powf(b.to_f64().unwrap()));
-                        },
-                    (a: NumToReal, b: f64) => // num real #
-                        self.push(a.0.powf(b)),
-                    [a: Scalar, b: Array] => // scalar array #, array scalar #
-                        match b.iter().position(|e| e.strict_eq(&a.0)) {
-                            Some(i) => self.push(Int::from(i)),
-                            None => self.push(Int::from(-1)),
-                        },
-                    (a: Array, b: Array) => // array array #
-                        {
-                            let al = a.len();
-                            let bl = b.len();
-                            let idx = if bl > al {
-                                None
-                            } else {
-                                (0 .. 1 + al - bl).find(|&i|
-                                    a.iter()
-                                        .zip(&b)
-                                        .skip(i)
-                                        .all(|(ai, bi)| ai.strict_eq(bi)))
-                            };
-                            match idx {
-                                Some(i) => self.push(Int::from(i)),
-                                None => self.push(Int::from(-1)),
-                            }
-                        },
-                    [a: Array, b: Block] => // array block #, block array #
-                        match try_position(
-                            a.into_iter(),
-                            |elem| {
-                                self.push(elem);
-                                self.run(&b)?; // TODO attach context information
-                                self.pop()?.truthiness()
-                                    .ok_or(Error::NoBlockTruthiness)
-                            })?
-                        {
-                            Some(i) => self.push(Int::from(i)),
-                            None => self.push(Int::from(-1)),
-                        },
-                    (a: Value, b: Value) => // error
-                        return Err(Error::NotHandled2 {
-                            got1: a.type_name(),
-                            got2: b.type_name(),
-                            op: "#"
-                        }),
-                });
-            }
-
-            And => {
-                let b = self.pop()?;
-                let a = self.pop()?;
-                binary_match!((a, b) {
-                    (a: Int, b: Int) => // int int &
-                        self.push(a & b),
-                    [a: Char, b: IntegralToChar] => // int char &, char int &, char char &
-                        self.push(Char(a.0 & b.0.0)),
-                    (a: Array, b: Array) => // array array &
-                        {
-                            let mut a = a;
-                            // keep the first copy of every element
-                            // in `a` as long as it appears in `b`
-                            let mut items: HashSet<_> = b.into_iter()
-                                .map(Hashable).collect();
-                            a.retain(|elem| {
-                                items.remove(Hashable::from_ref(elem))
-                            });
-                            self.push(a);
-                        },
-                    [a: Scalar, b: Array] => // scalar array &, array scalar &
-                        {
-                            let a = Hashable(a.0);
-                            let present = b.iter().any(|elem|
-                                Hashable::from_ref(elem) == &a);
-                            let mut b = b;
-                            b.clear();
-                            if present {
-                                b.push_back(a.0);
-                            }
-                            self.push(b);
-                        },
-                    (a: Value, b: Block) => // any block & (error if 1st is block)
-                        match a.truthiness() {
-                            Some(true) => self.run(&b)?, // TODO attach context information
-                            Some(false) => {}
-                            None => return Err(Error::NotHandled2 {
-                                got1: Value::BLOCK_TYPE_NAME,
-                                got2: Value::BLOCK_TYPE_NAME,
-                                op: "&",
-                            })
-                        },
-                    (a: Value, b: Value) => // error
-                        return Err(Error::NotHandled2 {
-                            got1: a.type_name(),
-                            got2: b.type_name(),
-                            op: "&",
-                        }),
-                })
-            }
-
-            Star => {
-                let b = self.pop()?;
-                let a = self.pop()?;
-                binary_match!((a, b) {
-                    (a: Int, b: Int) => // int int *
-                        self.push(a * b),
-                    (a: NumToReal, b: NumToReal) => // real num *, num real *
-                        self.push(a.0 * b.0),
-                    [a: Array, b: NumToInt] => // array num *, num array *
-                        if let Some(b) = b.0.to_usize() {
-                            if b.checked_mul(a.len()).is_some() {
-                                let mut res = Array::new();
-                                for _ in 0..b {
-                                    res.extend(a.iter().cloned());
-                                }
-                                self.push(res);
-                            } else {
-                                return Err(Error::MulBadArrayLength);
-                            }
-                        } else {
-                            return Err(Error::MulBadArrayLength);
-                        },
-                    [a: Char, b: NumToInt] => // char num *, num char *
-                        match b.0.to_usize() {
-                            None => return Err(Error::MulBadArrayLength),
-                            Some(len) => {
-                                let mut res = Array::new();
-                                for _ in 0..len {
-                                    res.push_back(a.into());
-                                }
-                                self.push(res);
-                            }
-                        },
-                    (a: Array, b: Array) => // array array *
-                        {
-                            let mut res = Array::new();
-                            for (i, elem) in a.into_iter().enumerate() {
-                                if i != 0 {
-                                    res.extend(b.iter().cloned());
-                                }
-                                if let Value::Array(elem) = elem {
-                                    res.append(elem);
-                                } else {
-                                    res.push_back(elem);
-                                }
-                            }
-                            self.push(res);
-                        },
-                    [a: Array, b: Char] => // array char *, char array *
-                        {
-                            let mut res = Array::new();
-                            for (i, elem) in a.into_iter().enumerate() {
-                                if i != 0 {
-                                    res.push_back(b.into());
-                                }
-                                if let Value::Array(elem) = elem {
-                                    res.append(elem);
-                                } else {
-                                    res.push_back(elem);
-                                }
-                            }
-                            self.push(res);
-                        },
-                    [a: Block, b: NumToInt] => // block num *, num block *
-                        if let Some(b) = b.0.to_isize() {
-                            for _ in 0..b {
-                                self.run(&a)?; // TODO attach context information
-                            }
-                        } else {
-                            loop {
-                                self.run(&a)?; // TODO attach context information
-                            }
-                        },
-                    [a: Array, b: Block] => // array block *, block array *
-                        {
-                            let mut a = a;
-                            let first = a.pop_front().ok_or(Error::ReduceEmptyArray)?;
-                            self.push(first);
-                            for val in a {
-                                self.push(val);
-                                self.run(&b)?; // TODO attach context information
-                            }
-                        },
-                    (a: Value, b: Value) => // error
-                        return Err(Error::NotHandled2 {
-                            got1: a.type_name(),
-                            got2: b.type_name(),
-                            op: "*",
-                        }),
-                })
-            }
-
-            Plus => {
-                let b = self.pop()?;
-                let a = self.pop()?;
-                binary_match!((a, b) {
-                    (a: Char, b: Char) => // char char +
-                        self.push(im::vector![a.into(), b.into()]),
-                    [a: Char, b: ScalarToInt] => // char num +, num char +
-                        self.push(Char(a.0.wrapping_add(bigint_to_u32_wrapping(&b.0)))),
-                    (a: Int, b: Int) => // int int +
-                        self.push(a + b),
-                    [a: f64, b: NumToReal] => // int num +, num int +
-                        self.push(a + b.0),
-                    (a: Array, b: Array) => // arr arr +
-                        {
-                            let mut a = a;
-                            a.append(b);
-                            self.push(a);
-                        },
-                    (a: Value, b: Array) => // any arr +
-                        {
-                            let mut b = b;
-                            b.push_front(a);
-                            self.push(b);
-                        },
-                    (a: Array, b: Value) => // arr any +
-                        {
-                            let mut a = a;
-                            a.push_back(b);
-                            self.push(a);
-                        },
-                    (a: Block, b: Block) => // block block +
-                        {
-                            let mut a = a;
-                            let a_ref = Rc::make_mut(&mut a);
-                            match Rc::try_unwrap(b) {
-                                Ok(mut b) => {
-                                    a_ref.bytes.append(&mut b.bytes);
-                                    a_ref.consts.append(&mut b.consts);
-                                }
-                                Err(b) => {
-                                    a_ref.bytes.extend(b.bytes.iter().cloned());
-                                    a_ref.consts.extend(b.consts.iter().cloned());
-                                }
-                            }
-                            self.push(a);
-                        },
-                    (a: Block, b: Value) => // block any +
-                        {
-                            let mut a = a;
-                            let a_ref = Rc::make_mut(&mut a);
-                            a_ref.bytes.push(Opcode::Lit as u8);
-                            a_ref.consts.push(b);
-                            self.push(a);
-                        },
-                    (a: Value, b: Block) => // any block +
-                        {
-                            // TODO - maybe use a VecDeque or
-                            // something so this isn't O(n)?
-                            let mut b = b;
-                            let b_ref = Rc::make_mut(&mut b);
-                            b_ref.bytes.insert(0, Opcode::Lit as u8);
-                            b_ref.consts.insert(0, a);
-                            self.push(b);
-                        },
-                    (a: Value, b: Value) => // error
-                        return Err(Error::NotHandled2 {
-                            got1: a.type_name(),
-                            got2: b.type_name(),
-                            op: "+",
-                        }),
-                });
-            }
+            v => return Err(Error::NotHandled1 {
+                got: v.type_name(),
+                op: "$",
+            }),
         }
+        Ok(())
+    }
+
+    fn op_left_paren(&mut self) -> Result<(), Error> {
+        match self.pop()? {
+            Value::Char(c) => self.push(Char(c.0.wrapping_sub(1))),
+            Value::Int(i) => self.push(i - 1),
+            Value::Real(x) => self.push(x - 1.),
+            Value::Array(mut a) => {
+                let first = a.pop_front().ok_or(Error::PopEmptyArray)?;
+                self.push(a);
+                self.push(first);
+            }
+            v => return Err(Error::NotHandled1 {
+                got: v.type_name(),
+                op: "(",
+            })
+        }
+        Ok(())
+    }
+
+    fn op_right_paren(&mut self) -> Result<(), Error> {
+        match self.pop()? {
+            Value::Char(c) => self.push(Char(c.0.wrapping_add(1))),
+            Value::Int(i) => self.push(i + 1),
+            Value::Real(x) => self.push(x + 1.),
+            Value::Array(mut a) => {
+                let last = a.pop_back().ok_or(Error::PopEmptyArray)?;
+                self.push(a);
+                self.push(last);
+            }
+            v => return Err(Error::NotHandled1 {
+                got: v.type_name(),
+                op: ")",
+            })
+        }
+        Ok(())
+    }
+
+    fn op_underscore(&mut self) -> Result<(), Error> {
+        let a = self.peek()?.clone();
+        self.push(a);
+        Ok(())
+    }
+
+    fn op_lower_a(&mut self) -> Result<(), Error> {
+        let a = self.pop()?;
+        self.push(im::vector![a]);
+        Ok(())
+    }
+
+    fn op_percent(&mut self) -> Result<(), Error> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        binary_match!((a, b) {
+            (a: Int, b: Int) => // int int %
+                if b.is_zero() {
+                    return Err(Error::ModByZero);
+                } else {
+                    self.push(a % b);
+                },
+            (a: NumToReal, b: NumToReal) => // real num %, num real %
+                self.push(a.0 % b.0),
+            (a: Array, b: Array) => // array array %
+                self.push(
+                    split_iter_many(&mut a.into_iter(), &b, b.len())
+                        .filter(|part: &Array| !part.is_empty())
+                        .map(Array::into)
+                        .collect::<Array>()),
+            [a: Array, b: Char] => // array char %, char array %
+                self.push(
+                    split_iter_one(&mut a.into_iter(), &b.into())
+                        .filter(|part: &Array| !part.is_empty())
+                        .map(Array::into)
+                        .collect::<Array>()),
+            [a: Array, b: ScalarToInt] => // array num %, num array %
+                {
+                    let mut a = a;
+                    match b.0.sign() {
+                        Sign::NoSign => return Err(Error::ModByZero),
+                        Sign::Plus => match b.0.to_u64() {
+                            Some(1) => {}
+                            Some(b) => {
+                                let mut i = 0;
+                                a.retain(|_| {
+                                    let keep = i % b == 0;
+                                    i += 1;
+                                    keep
+                                });
+                            }
+                            // no array could possibly have a length greater
+                            // than a positive integer that doesn't fit in an
+                            // `i64`, so we can just take the first element
+                            None => a.truncate(1),
+                        }
+                        Sign::Minus => match b.0.to_i64() {
+                            Some(-1) => reverse_vector(&mut a),
+                            Some(b) => {
+                                reverse_vector(&mut a);
+                                let mut i = 0;
+                                a.retain(|_| {
+                                    let keep = i % -b == 0;
+                                    i += 1;
+                                    keep
+                                });
+                            }
+                            // no array could possibly have a length greater
+                            // than the magnitude of an integer that doesn't
+                            // fit in an `i64`, so we can just take the last
+                            // element
+                            None => a = a.pop_back().into_iter().collect(),
+                        }
+                    }
+                    self.push(a);
+                },
+            (a: Value, b: Value) => // error
+                return Err(Error::NotHandled2 {
+                    got1: a.type_name(),
+                    got2: b.type_name(),
+                    op: "%",
+                }),
+        });
+        Ok(())
+    }
+
+    fn op_hash(&mut self) -> Result<(), Error> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        binary_match!((a, b) {
+            (a: Int, b: Int) => // int int #
+                if let Some(pow) = b.to_u32() {
+                    self.push(a.pow(pow));
+                } else if a.is_zero() {
+                    self.push(a);
+                } else if let Some(pow) = b.to_i32() {
+                    self.push(a.to_f64().unwrap().powi(pow));
+                } else if b.sign() == Sign::Minus {
+                    self.push(Int::zero());
+                } else {
+                    return Err(Error::ExponentTooLarge(b));
+                },
+            (a: f64, b: Int) => // real int #
+                if let Some(pow) = b.to_i32() {
+                    self.push((a as f64).powi(pow))
+                } else {
+                    self.push(a.powf(b.to_f64().unwrap()));
+                },
+            (a: NumToReal, b: f64) => // num real #
+                self.push(a.0.powf(b)),
+            [a: Scalar, b: Array] => // scalar array #, array scalar #
+                match b.iter().position(|e| e.strict_eq(&a.0)) {
+                    Some(i) => self.push(Int::from(i)),
+                    None => self.push(Int::from(-1)),
+                },
+            (a: Array, b: Array) => // array array #
+                {
+                    let al = a.len();
+                    let bl = b.len();
+                    let idx = if bl > al {
+                        None
+                    } else {
+                        (0 .. 1 + al - bl).find(|&i|
+                            a.iter()
+                                .zip(&b)
+                                .skip(i)
+                                .all(|(ai, bi)| ai.strict_eq(bi)))
+                    };
+                    match idx {
+                        Some(i) => self.push(Int::from(i)),
+                        None => self.push(Int::from(-1)),
+                    }
+                },
+            [a: Array, b: Block] => // array block #, block array #
+                match try_position(
+                    a.into_iter(),
+                    |elem| {
+                        self.push(elem);
+                        self.run(&b)?; // TODO attach context information
+                        self.pop()?.truthiness()
+                            .ok_or(Error::NoBlockTruthiness)
+                    })?
+                {
+                    Some(i) => self.push(Int::from(i)),
+                    None => self.push(Int::from(-1)),
+                },
+            (a: Value, b: Value) => // error
+                return Err(Error::NotHandled2 {
+                    got1: a.type_name(),
+                    got2: b.type_name(),
+                    op: "#"
+                }),
+        });
+        Ok(())
+    }
+
+    fn op_and(&mut self) -> Result<(), Error> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        binary_match!((a, b) {
+            (a: Int, b: Int) => // int int &
+                self.push(a & b),
+            [a: Char, b: IntegralToChar] => // int char &, char int &, char char &
+                self.push(Char(a.0 & b.0.0)),
+            (a: Array, b: Array) => // array array &
+                {
+                    let mut a = a;
+                    // keep the first copy of every element
+                    // in `a` as long as it appears in `b`
+                    let mut items: HashSet<_> = b.into_iter()
+                        .map(Hashable).collect();
+                    a.retain(|elem| {
+                        items.remove(Hashable::from_ref(elem))
+                    });
+                    self.push(a);
+                },
+            [a: Scalar, b: Array] => // scalar array &, array scalar &
+                {
+                    let a = Hashable(a.0);
+                    let present = b.iter().any(|elem|
+                        Hashable::from_ref(elem) == &a);
+                    let mut b = b;
+                    b.clear();
+                    if present {
+                        b.push_back(a.0);
+                    }
+                    self.push(b);
+                },
+            (a: Value, b: Block) => // any block & (error if 1st is block)
+                match a.truthiness() {
+                    Some(true) => self.run(&b)?, // TODO attach context information
+                    Some(false) => {}
+                    None => return Err(Error::NotHandled2 {
+                        got1: Value::BLOCK_TYPE_NAME,
+                        got2: Value::BLOCK_TYPE_NAME,
+                        op: "&",
+                    })
+                },
+            (a: Value, b: Value) => // error
+                return Err(Error::NotHandled2 {
+                    got1: a.type_name(),
+                    got2: b.type_name(),
+                    op: "&",
+                }),
+        });
+        Ok(())
+    }
+
+    fn op_star(&mut self) -> Result<(), Error> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        binary_match!((a, b) {
+            (a: Int, b: Int) => // int int *
+                self.push(a * b),
+            (a: NumToReal, b: NumToReal) => // real num *, num real *
+                self.push(a.0 * b.0),
+            [a: Array, b: NumToInt] => // array num *, num array *
+                if let Some(b) = b.0.to_usize() {
+                    if b.checked_mul(a.len()).is_some() {
+                        let mut res = Array::new();
+                        for _ in 0..b {
+                            res.extend(a.iter().cloned());
+                        }
+                        self.push(res);
+                    } else {
+                        return Err(Error::MulBadArrayLength);
+                    }
+                } else {
+                    return Err(Error::MulBadArrayLength);
+                },
+            [a: Char, b: NumToInt] => // char num *, num char *
+                match b.0.to_usize() {
+                    None => return Err(Error::MulBadArrayLength),
+                    Some(len) => {
+                        let mut res = Array::new();
+                        for _ in 0..len {
+                            res.push_back(a.into());
+                        }
+                        self.push(res);
+                    }
+                },
+            (a: Array, b: Array) => // array array *
+                {
+                    let mut res = Array::new();
+                    for (i, elem) in a.into_iter().enumerate() {
+                        if i != 0 {
+                            res.extend(b.iter().cloned());
+                        }
+                        if let Value::Array(elem) = elem {
+                            res.append(elem);
+                        } else {
+                            res.push_back(elem);
+                        }
+                    }
+                    self.push(res);
+                },
+            [a: Array, b: Char] => // array char *, char array *
+                {
+                    let mut res = Array::new();
+                    for (i, elem) in a.into_iter().enumerate() {
+                        if i != 0 {
+                            res.push_back(b.into());
+                        }
+                        if let Value::Array(elem) = elem {
+                            res.append(elem);
+                        } else {
+                            res.push_back(elem);
+                        }
+                    }
+                    self.push(res);
+                },
+            [a: Block, b: NumToInt] => // block num *, num block *
+                if let Some(b) = b.0.to_isize() {
+                    for _ in 0..b {
+                        self.run(&a)?; // TODO attach context information
+                    }
+                } else {
+                    loop {
+                        self.run(&a)?; // TODO attach context information
+                    }
+                },
+            [a: Array, b: Block] => // array block *, block array *
+                {
+                    let mut a = a;
+                    let first = a.pop_front().ok_or(Error::ReduceEmptyArray)?;
+                    self.push(first);
+                    for val in a {
+                        self.push(val);
+                        self.run(&b)?; // TODO attach context information
+                    }
+                },
+            (a: Value, b: Value) => // error
+                return Err(Error::NotHandled2 {
+                    got1: a.type_name(),
+                    got2: b.type_name(),
+                    op: "*",
+                }),
+        });
+        Ok(())
+    }
+
+    fn op_plus(&mut self) -> Result<(), Error> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        binary_match!((a, b) {
+            (a: Char, b: Char) => // char char +
+                self.push(im::vector![a.into(), b.into()]),
+            [a: Char, b: ScalarToInt] => // char num +, num char +
+                self.push(Char(a.0.wrapping_add(bigint_to_u32_wrapping(&b.0)))),
+            (a: Int, b: Int) => // int int +
+                self.push(a + b),
+            [a: f64, b: NumToReal] => // int num +, num int +
+                self.push(a + b.0),
+            (a: Array, b: Array) => // arr arr +
+                {
+                    let mut a = a;
+                    a.append(b);
+                    self.push(a);
+                },
+            (a: Value, b: Array) => // any arr +
+                {
+                    let mut b = b;
+                    b.push_front(a);
+                    self.push(b);
+                },
+            (a: Array, b: Value) => // arr any +
+                {
+                    let mut a = a;
+                    a.push_back(b);
+                    self.push(a);
+                },
+            (a: Block, b: Block) => // block block +
+                {
+                    let mut a = a;
+                    let a_ref = Rc::make_mut(&mut a);
+                    match Rc::try_unwrap(b) {
+                        Ok(mut b) => {
+                            a_ref.bytes.append(&mut b.bytes);
+                            a_ref.consts.append(&mut b.consts);
+                        }
+                        Err(b) => {
+                            a_ref.bytes.extend(b.bytes.iter().cloned());
+                            a_ref.consts.extend(b.consts.iter().cloned());
+                        }
+                    }
+                    self.push(a);
+                },
+            (a: Block, b: Value) => // block any +
+                {
+                    let mut a = a;
+                    let a_ref = Rc::make_mut(&mut a);
+                    a_ref.bytes.push(Opcode::Lit as u8);
+                    a_ref.consts.push(b);
+                    self.push(a);
+                },
+            (a: Value, b: Block) => // any block +
+                {
+                    // TODO - maybe use a VecDeque or
+                    // something so this isn't O(n)?
+                    let mut b = b;
+                    let b_ref = Rc::make_mut(&mut b);
+                    b_ref.bytes.insert(0, Opcode::Lit as u8);
+                    b_ref.consts.insert(0, a);
+                    self.push(b);
+                },
+            (a: Value, b: Value) => // error
+                return Err(Error::NotHandled2 {
+                    got1: a.type_name(),
+                    got2: b.type_name(),
+                    op: "+",
+                }),
+        });
         Ok(())
     }
 
