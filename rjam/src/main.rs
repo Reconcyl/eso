@@ -1,3 +1,5 @@
+extern crate im_rc as im;
+
 #[macro_use]
 mod value;
 mod bytecode;
