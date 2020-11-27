@@ -724,7 +724,7 @@ impl Runtime {
             (a: Array, b: Scalar) => // arr scalar -
                 {
                     let mut a = a;
-                    a.retain(|e| b.0.strict_eq(e));
+                    a.retain(|e| !b.0.strict_eq(e));
                     self.push(a);
                 },
             (a: Array, b: Array) => // arr arr -
@@ -732,7 +732,7 @@ impl Runtime {
                     let mut a = a;
                     let items: HashSet<_> = b.into_iter()
                         .map(Hashable).collect();
-                    a.retain(|e| items.contains(Hashable::from_ref(e)));
+                    a.retain(|e| !items.contains(Hashable::from_ref(e)));
                     self.push(a);
                 },
             (a: Scalar, b: Array) => // scalar arr -
