@@ -1,5 +1,4 @@
 use num_bigint::BigInt;
-use num_traits::One as _;
 
 use std::fmt;
 
@@ -141,6 +140,35 @@ impl ParseState<'_> {
         Ok(chars.into())
     }
 
+    /// Decode an integer literal given its first digit.
+    fn next_num(&mut self, first: u8) -> Value {
+        let mut chars = vec![first];
+        let mut is_decimal = first == b'.';
+        loop {
+            match self.peek_byte() {
+                Some(b) if b.is_ascii_digit() => chars.push(b),
+                Some(b'.') if !is_decimal => {
+                    is_decimal = true;
+                    chars.push(b'.');
+                }
+                _ => break,
+            }
+            let _ = self.next_byte();
+        }
+        // this function only adds ASCII values to the vector, so this
+        // can only fail if the caller passed in a non-ASCII byte
+        let chars = std::str::from_utf8(&chars).unwrap();
+        if is_decimal {
+            // potential bad values of `chars` that can cause a panic here:
+            // "." and ".-"
+            Value::Real(chars.parse::<f64>().unwrap())
+        } else {
+            // potential bad value of `chars` that can cause a panic here:
+            // "-"
+            Value::Int(chars.parse::<BigInt>().unwrap())
+        }
+    }
+
     /// Add an opcode to the bytecode.
     fn add_opcode(&mut self, op: Opcode) {
         self.bytecode.bytes.push(op as u8);
@@ -182,7 +210,10 @@ impl ParseState<'_> {
             b'*' => self.add_opcode(Star),
             b'+' => self.add_opcode(Plus),
             b',' => self.add_opcode(Comma),
-            b'1' => self.add_lit(Value::Int(BigInt::one())),
+            b if b.is_ascii_digit() => {
+                let val = self.next_num(b);
+                self.add_lit(val);
+            }
             b'[' => self.add_opcode(LeftBracket),
             b']' => self.add_opcode(RightBracket),
             b'_' => self.add_opcode(Underscore),
