@@ -57,4 +57,5 @@ opcodes!(pub enum Opcode {
     And,
     Star,
     Plus,
+    Minus,
 });

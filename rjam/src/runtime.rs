@@ -8,7 +8,7 @@ use std::rc::Rc;
 use crate::bytecode::{Bytecode, Opcode};
 use crate::value::{
     Char, Int, Array, Block, Value, Hashable, FromValue,
-    Scalar, ScalarToInt, NumToReal, NumToInt, IntegralToChar,
+    Scalar, NumToReal, NumToInt, IntegralToChar,
 };
 use crate::utils::{
     reverse_vector, get_wrapping, try_position, try_retain,
@@ -195,6 +195,7 @@ impl Runtime {
             And => self.op_and(),
             Star => self.op_star(),
             Plus => self.op_plus(),
+            Minus => self.op_minus(),
         }
     }
 
@@ -365,7 +366,7 @@ impl Runtime {
                         .filter(|part: &Array| !part.is_empty())
                         .map(Array::into)
                         .collect::<Array>()),
-            [a: Array, b: ScalarToInt] => // array num %, num array %
+            [a: Array, b: NumToInt] => // array num %, num array %
                 {
                     let mut a = a;
                     let b = b.0.ok_or(Error::IntOfInf)?;
@@ -634,7 +635,7 @@ impl Runtime {
         binary_match!((a, b) {
             (a: Char, b: Char) => // char char +
                 self.push(im::vector![a.into(), b.into()]),
-            [a: Char, b: ScalarToInt] => // char num +, num char +
+            [a: Char, b: NumToInt] => // char num +, num char +
                 {
                     let b = bigint_to_u32_wrapping(&b.0.ok_or(Error::IntOfInf)?);
                     self.push(Char(a.0.wrapping_add(b)));
@@ -701,6 +702,45 @@ impl Runtime {
                     got2: b.type_name(),
                     op: "+",
                 }),
+        });
+        Ok(())
+    }
+
+    fn op_minus(&mut self) -> Result<(), Error> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        binary_match!((a, b) {
+            (a: Int, b: Int) => // int int -
+                self.push(a - b),
+            (a: NumToReal, b: NumToReal) => // real int -, int real -, real real -
+                self.push(a.0 - b.0),
+            (a: Char, b: Char) => // char char -
+                self.push(Int::from((a.0 as i32).wrapping_sub(b.0 as i32))),
+            (a: Char, b: NumToInt) => // char num -
+                {
+                    let b = bigint_to_u32_wrapping(&b.0.ok_or(Error::IntOfInf)?);
+                    self.push(Char(a.0.wrapping_sub(b)));
+                },
+            (a: Array, b: Scalar) => // arr scalar -
+                {
+                    let mut a = a;
+                    a.retain(|e| b.0.strict_eq(e));
+                    self.push(a);
+                },
+            (a: Array, b: Array) => // arr arr -
+                {
+                    let mut a = a;
+                    let items: HashSet<_> = b.into_iter()
+                        .map(Hashable).collect();
+                    a.retain(|e| items.contains(Hashable::from_ref(e)));
+                    self.push(a);
+                },
+            (a: Scalar, b: Array) => // scalar arr -
+                if b.contains(&a.0) {
+                    self.push(im::vector![]);
+                } else {
+                    self.push(im::vector![a.0]);
+                },
         });
         Ok(())
     }

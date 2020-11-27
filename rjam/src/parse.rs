@@ -210,6 +210,7 @@ impl ParseState<'_> {
             b'*' => self.add_opcode(Star),
             b'+' => self.add_opcode(Plus),
             b',' => self.add_opcode(Comma),
+            b'-' => self.add_opcode(Minus),
             b if b.is_ascii_digit() => {
                 let val = self.next_num(b);
                 self.add_lit(val);
