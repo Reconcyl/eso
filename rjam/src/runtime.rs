@@ -12,7 +12,8 @@ use crate::value::{
 };
 use crate::utils::{
     reverse_vector, get_wrapping, try_position, try_retain,
-    bigint_to_u32_wrapping, split_iter_one, split_iter_many
+    bigint_to_u32_wrapping, split_iter_one, split_iter_many,
+    LinearSet,
 };
 
 pub enum Error {
@@ -86,6 +87,11 @@ impl fmt::Display for Error {
         }
     }
 }
+
+/// The cutoff above which functions like `&` and `-` should attempt
+/// to build indices with sets rather than conducting linear searches.
+// TODO: more benchmarking to determine whether this threshold is good
+const HASH_THRESHOLD: usize = 32;
 
 pub struct Runtime {
     stack: Vec<Value>,
@@ -500,11 +506,15 @@ impl Runtime {
                     let mut a = a;
                     // keep the first copy of every element
                     // in `a` as long as it appears in `b`
-                    let mut items: HashSet<_> = b.into_iter()
-                        .map(Hashable).collect();
-                    a.retain(|elem| {
-                        items.remove(Hashable::from_ref(elem))
-                    });
+                    let use_hashset = b.len() > HASH_THRESHOLD;
+                    let items = b.into_iter().map(Hashable);
+                    if use_hashset {
+                        let mut items = items.collect::<HashSet<_>>();
+                        a.retain(|elem| items.remove(Hashable::from_ref(elem)));
+                    } else {
+                        let mut items = items.collect::<LinearSet<_>>();
+                        a.retain(|elem| items.remove(Hashable::from_ref(elem)));
+                    }
                     self.push(a);
                 },
             [a: Scalar, b: Array] => // scalar array &, array scalar &
@@ -730,13 +740,19 @@ impl Runtime {
             (a: Array, b: Array) => // arr arr -
                 {
                     let mut a = a;
-                    let items: HashSet<_> = b.into_iter()
-                        .map(Hashable).collect();
-                    a.retain(|e| !items.contains(Hashable::from_ref(e)));
+                    let use_hashset = b.len() > HASH_THRESHOLD;
+                    let items = b.into_iter().map(Hashable);
+                    if use_hashset {
+                        let items = items.collect::<HashSet<_>>();
+                        a.retain(|e| !items.contains(Hashable::from_ref(e)));
+                    } else {
+                        let items = items.collect::<LinearSet<_>>();
+                        a.retain(|e| !items.contains(Hashable::from_ref(e)));
+                    }
                     self.push(a);
                 },
             (a: Scalar, b: Array) => // scalar arr -
-                if b.contains(&a.0) {
+                if b.iter().any(|e| e.strict_eq(&a.0)) {
                     self.push(im::vector![]);
                 } else {
                     self.push(im::vector![a.0]);

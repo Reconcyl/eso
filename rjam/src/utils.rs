@@ -236,3 +236,54 @@ pub fn split_iter_many<
         }
     })
 }
+
+/// A data structure offering a subset of the API of `HashSet`,
+/// but implemented using slices and linear searches.
+pub struct LinearSet<T> {
+    vals: Vec<T>,
+    /// Determine if this set is normalized (i.e.
+    /// `vals` is sorted and has no duplicates)
+    is_normal: bool,
+}
+
+impl<T: Ord> LinearSet<T> {
+    pub fn contains(&self, elem: &T) -> bool {
+        if self.is_normal {
+            self.vals.binary_search(elem).is_ok()
+        } else {
+            self.vals.contains(elem)
+        }
+    }
+
+    pub fn remove(&mut self, elem: &T) -> bool {
+        self.normalize();
+        match self.vals.binary_search(elem) {
+            Ok(idx) => { self.vals.remove(idx); true }
+            Err(_) => false,
+        }
+    }
+}
+
+impl<T: Ord> LinearSet<T> {
+    pub fn normalize(&mut self) {
+        if self.is_normal { return }
+        self.is_normal = true;
+        self.vals.sort();
+        self.vals.dedup();
+    }
+}
+
+impl<T: Ord> FromIterator<T> for LinearSet<T> {
+    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let mut vals = Vec::with_capacity(iter.size_hint().0);
+        let mut is_normal = true;
+        for val in iter {
+            if is_normal && vals.last().map_or(false, |prev| !(prev < &val)) {
+                is_normal = false;
+            }
+            vals.push(val);
+        }
+        Self { vals, is_normal }
+    }
+}

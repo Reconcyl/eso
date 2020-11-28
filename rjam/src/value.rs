@@ -201,6 +201,24 @@ impl Hashable {
     }
 }
 
+impl Ord for Hashable {
+    fn cmp(&self, other: &Self) -> Ordering {
+        fn hash<T: Hash>(val: &T) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            let mut hasher = DefaultHasher::new();
+            val.hash(&mut hasher);
+            hasher.finish()
+        }
+        hash(self).cmp(&hash(other))
+    }
+}
+
+impl PartialOrd for Hashable {
+    fn partial_cmp(&self, other: &Hashable) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Eq for Hashable {}
 
 impl PartialEq for Hashable {
