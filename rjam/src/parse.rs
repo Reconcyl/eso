@@ -86,6 +86,11 @@ impl ParseState<'_> {
         self.code.get(self.pos).copied()
     }
 
+    /// Return the byte after the next in the input.
+    fn peek_next_byte(&mut self) -> Option<u8> {
+        self.code.get(self.pos + 1).copied()
+    }
+
     /// Return the next byte in the input and advance the cursor past it.
     fn next_byte(&mut self) -> Option<u8> {
         let res = self.peek_byte()?;
@@ -210,7 +215,20 @@ impl ParseState<'_> {
             b'*' => self.add_opcode(Star),
             b'+' => self.add_opcode(Plus),
             b',' => self.add_opcode(Comma),
-            b'-' => self.add_opcode(Minus),
+            b'-' =>
+                // this is the start of a negative numeric literal if:
+                // - the next byte is a digit
+                // - the next byte is `.` and the byte after that is a digit
+                if self.peek_byte()
+                    .map_or(false, |b| b.is_ascii_digit() ||
+                        (b == b'.' && self.peek_next_byte()
+                            .map_or(false, |b| b.is_ascii_digit())))
+                {
+                    let val = self.next_num(b'-');
+                    self.add_lit(val);
+                } else {
+                    self.add_opcode(Minus);
+                }
             b if b.is_ascii_digit() => {
                 let val = self.next_num(b);
                 self.add_lit(val);
