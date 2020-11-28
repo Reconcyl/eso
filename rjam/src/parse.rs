@@ -173,87 +173,81 @@ impl ParseState<'_> {
             Value::Int(chars.parse::<BigInt>().unwrap())
         }
     }
+}
 
-    /// Add an opcode to the bytecode.
-    fn add_opcode(&mut self, op: Opcode) {
-        self.bytecode.bytes.push(op as u8);
-    }
-
-    /// Add a literal value to the bytecode.
-    fn add_lit(&mut self, val: Value) {
-        self.bytecode.consts.push(val);
-        self.add_opcode(Opcode::Lit);
-    }
-
-    /// Decode the next instruction.
-    fn add_ins(&mut self) -> Result<(), Error> {
+impl ParseState<'_> {
+    /// Decode and return the next instruction. Return
+    /// the opcode and possibly an integer literal.
+    fn next_ins(&mut self) -> Result<(Option<Value>, Opcode), Error> {
         use Opcode::*;
-        let byte = match self.next_byte() {
-            Some(b) => b,
-            None => return Err(Error::Unexpected {
-                ex: Expect::Instr,
-                got: Outcome::Eof,
-            })
-        };
-        match byte {
-            b'\t' | b'\n' | b'\r' | b' ' => {}
-            b'!' => self.add_opcode(Excl),
-            b'"' => {
-                let val = self.next_str()?;
-                self.add_lit(val);
-            }
-            b'#' => self.add_opcode(Hash),
-            b'$' => self.add_opcode(Dollar),
-            b'%' => self.add_opcode(Percent),
-            b'&' => self.add_opcode(And),
-            b'\'' => {
-                let c = self.next_char(Expect::CharLiteral)?;
-                self.add_lit(c.into());
-            }
-            b'(' => self.add_opcode(LeftParen),
-            b')' => self.add_opcode(RightParen),
-            b'*' => self.add_opcode(Star),
-            b'+' => self.add_opcode(Plus),
-            b',' => self.add_opcode(Comma),
-            b'-' =>
-                // this is the start of a negative numeric literal if:
-                // - the next byte is a digit
-                // - the next byte is `.` and the byte after that is a digit
-                if self.peek_byte()
-                    .map_or(false, |b| b.is_ascii_digit() ||
-                        (b == b'.' && self.peek_next_byte()
-                            .map_or(false, |b| b.is_ascii_digit())))
-                {
-                    let val = self.next_num(b'-');
-                    self.add_lit(val);
-                } else {
-                    self.add_opcode(Minus);
+        Ok(loop {
+            let byte = match self.next_byte() {
+                Some(b) => b,
+                None => return Err(Error::Unexpected {
+                    ex: Expect::Instr,
+                    got: Outcome::Eof,
+                })
+            };
+            break match byte {
+                b'\t' | b'\n' | b'\r' | b' ' => continue,
+                b'!' => (None, Excl),
+                b'"' => (Some(self.next_str()?), Lit),
+                b'#' => (None, Hash),
+                b'$' => (None, Dollar),
+                b'%' => (None, Percent),
+                b'&' => (None, And),
+                b'\'' => (Some(self.next_char(Expect::CharLiteral)?.into()), Lit),
+                b'(' => (None, LeftParen),
+                b')' => (None, RightParen),
+                b'*' => (None, Star),
+                b'+' => (None, Plus),
+                b',' => (None, Comma),
+                b'-' =>
+                    // this is the start of a negative numeric literal if:
+                    // - the next byte is a digit
+                    // - the next byte is `.` and the byte after that is a digit
+                    if self.peek_byte()
+                        .map_or(false, |b| b.is_ascii_digit() ||
+                            (b == b'.' && self.peek_next_byte()
+                                .map_or(false, |b| b.is_ascii_digit())))
+                    {
+                        (Some(self.next_num(b'-')), Lit)
+                    } else {
+                        (None, Minus)
+                    }
+                b if b.is_ascii_digit() => (Some(self.next_num(b)), Lit),
+                b'[' => (None, LeftBracket),
+                b']' => (None, RightBracket),
+                b'_' => (None, Underscore),
+                b'a' => (None, LowerA),
+                b'{' => {
+                    let mut sub_state = ParseState {
+                        code: self.code,
+                        pos: self.pos,
+                        bytecode: Bytecode::new(),
+                    };
+                    while sub_state.peek_byte() != Some(b'}') {
+                        sub_state.add_ins()?;
+                    }
+                    self.pos = sub_state.pos + 1;
+                    let val = Block::new(sub_state.bytecode).into();
+                    (Some(val), Lit)
                 }
-            b if b.is_ascii_digit() => {
-                let val = self.next_num(b);
-                self.add_lit(val);
+                b => return Err(Error::Unexpected {
+                    ex: Expect::Instr,
+                    got: Outcome::Byte(b),
+                }),
             }
-            b'[' => self.add_opcode(LeftBracket),
-            b']' => self.add_opcode(RightBracket),
-            b'_' => self.add_opcode(Underscore),
-            b'a' => self.add_opcode(LowerA),
-            b'{' => {
-                let mut sub_state = ParseState {
-                    code: self.code,
-                    pos: self.pos,
-                    bytecode: Bytecode::new(),
-                };
-                while sub_state.peek_byte() != Some(b'}') {
-                    sub_state.add_ins()?;
-                }
-                self.pos = sub_state.pos + 1;
-                self.add_lit(Value::Block(Block::new(sub_state.bytecode)));
-            }
-            b => return Err(Error::Unexpected {
-                ex: Expect::Instr,
-                got: Outcome::Byte(b),
-            }),
+        })
+    }
+
+    /// Add an instruction to the bytecode.
+    fn add_ins(&mut self) -> Result<(), Error> {
+        let (lit, op) = self.next_ins()?;
+        if let Some(lit) = lit {
+            self.bytecode.consts.push(lit);
         }
+        self.bytecode.bytes.push(op as u8);
         Ok(())
     }
 }

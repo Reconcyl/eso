@@ -59,3 +59,23 @@ opcodes!(pub enum Opcode {
     Plus,
     Minus,
 });
+
+/// The syntactic arity of an operator. Note that some operators
+/// (e.g. `$`) have a different arity depending on the TOS, so
+/// this may not reflect the number of values popped at runtime.
+pub enum Arity {
+    Misc,
+    Unary,
+    Binary,
+}
+
+impl Opcode {
+    pub fn arity(self) -> Arity {
+        match self as u8 {
+            0x00 ..= 0x3f => Arity::Misc,
+            0x40 ..= 0x7f => Arity::Unary,
+            0x80 ..= 0xbf => Arity::Binary,
+            _ => unreachable!(),
+        }
+    }
+}
