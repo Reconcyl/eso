@@ -362,13 +362,13 @@ impl Runtime {
                 self.push(a.0 % b.0),
             (a: Array, b: Array) => // array array %
                 self.push(
-                    split_iter_many(&mut a.into_iter(), &b, b.len())
+                    split_iter_many(&mut a.into_iter(), &b, b.len(), &Value::strict_eq)
                         .filter(|part: &Array| !part.is_empty())
                         .map(Array::into)
                         .collect::<Array>()),
             [a: Array, b: Char] => // array char %, char array %
                 self.push(
-                    split_iter_one(&mut a.into_iter(), &b.into())
+                    split_iter_one(&mut a.into_iter(), &b.into(), &Value::strict_eq)
                         .filter(|part: &Array| !part.is_empty())
                         .map(Array::into)
                         .collect::<Array>()),

@@ -123,12 +123,14 @@ pub fn try_retain<T: Clone, E>(
 /// element and return a new iterator of components.
 pub fn split_iter_one<
     'a,
-    T: PartialEq,
+    T,
+    E: Fn(&T, &T) -> bool,
     I: Iterator<Item=T>,
     C: FromIterator<T>,
 >(
     ts: &'a mut I,
-    needle: &'a T
+    needle: &'a T,
+    eq: &'a E,
 ) -> impl Iterator<Item=C> + 'a {
     let mut finished = false;
     iter::from_fn(move || {
@@ -137,7 +139,7 @@ pub fn split_iter_one<
         } else {
             let segment = iter::from_fn(|| {
                 if let Some(t) = ts.next() {
-                    if &t == needle {
+                    if eq(&t, needle) {
                         None
                     } else {
                         Some(t)
@@ -183,7 +185,8 @@ impl<I: Iterator> Iterator for Indexable<I> {
 /// by occurences of the subsequence `needle`.
 pub fn split_iter_many<
     'a,
-    T: PartialEq + 'a,
+    T: 'a,
+    E: Fn(&T, &T) -> bool,
     I: Iterator<Item=T>,
     N: Index<usize, Output=T>,
     C: FromIterator<T>,
@@ -191,6 +194,7 @@ pub fn split_iter_many<
     haystack: &'a mut I,
     needle: &'a N,
     needle_len: usize,
+    eq: &'a E,
 ) -> impl Iterator<Item=C> + 'a {
     // TODO: if we're willing to specialize the interface,
     // we can reduce the complexity by using `take` instead
@@ -214,7 +218,7 @@ pub fn split_iter_many<
                 // take elements from the iterator until it diverges with the needle
                 for i in 0..needle_len {
                     if let Some(t) = haystack.get(i) {
-                        if t != &needle[i] {
+                        if !eq(t, &needle[i]) {
                             // we found the point of divergence; this means
                             // that the first element was definitely not part
                             // of the needle and can be queued
