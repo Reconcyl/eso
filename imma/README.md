@@ -120,6 +120,6 @@ zig cc -Wno-unused-command-line-argument exec.s -o exec
 ./exec -q input.immi # suppress warnings if the file is smaller than 131K
 ```
 
-This interpreter has only been tested to work on Linux (specifically, Alpine Linux running in WSL and using whatever assembler flags `zig cc` passes to libclang).
+This interpreter has only been tested to work on Linux (specifically, Alpine Linux running in WSL and using whatever assembler flags `zig cc` passes to libclang). It also doesn't support the external memory extension.
 
 There is a Makefile, but all it knows how to do is compile those two programs.
