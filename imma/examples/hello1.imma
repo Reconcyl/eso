@@ -1,0 +1,18 @@
+; A simple Hello World program.
+; Does not use any interesting control flow.
+
+1 ; initial IP value
+chr "H"
+chr "e"
+chr "l"
+chr "l"
+chr "o"
+chr ","
+chr " "
+chr "W"
+chr "o"
+chr "r"
+chr "l"
+chr "d"
+chr "!"
+chr "\n"

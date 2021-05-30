@@ -1,0 +1,34 @@
+; A more complex Hello World program.
+; It repeatedly derefences an incrementing pointer to the data string.
+; Every character is executed once as an instruction, which is a no-op
+; for most byte values but halts the program once a zero is reached.
+; Unfortunately, since 10 is a valid opcode, we can't print a trailing
+; newline with this approach.
+
+        a ; Initial IP value
+
+        ; Ensure the command is set up to access the pointer
+a:      lit get cmd
+        lit ptr cmd+1
+        lit b ret
+
+cmd:    ? ?
+        ; `ret` is the "return address" to jump to after the command
+        lit ret:? 0
+
+        ; Re-run the command to dereference the pointer's value
+b:      lit c ret
+        lit cmd 0
+
+        ; Replace the command with nop so the pointer's value is executed
+c:      lit d ret
+        lit nop cmd
+        lit cmd 0
+
+        ; Increment the pointer and output the character
+d:      add ptr:data 1
+        lit chr cmd
+        lit a ret
+        lit cmd 0
+
+data:   "Hello, World!"

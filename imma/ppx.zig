@@ -113,7 +113,7 @@ const ParseState = struct {
     fn update(self: *Self, c: u8, c_ptr: *const u8) !Res {
         switch (self.mode) {
 
-            .none => if (ascii.isSpace(c) || c == ',' || c == ';') {
+            .none => if (ascii.isSpace(c) or c == ',') {
                 return .advance;
             } else if (c == ';') {
                 return .stop;
