@@ -202,7 +202,7 @@ run:
     # - `rbx` holds the index of the first argument to the opcode
     # - `rbp` holds `offset MEM` (for shorter encoding)
     # each entry might clobber `rbx` or anything clobbered by
-    # a function (`rbx`, `rdi`, etc.)
+    # a function (`rax`, `rdi`, etc.)
     .jumptable:
 
         .org .jumptable + JT_SPACING*0
@@ -236,7 +236,7 @@ run:
         .org .jumptable + JT_SPACING*4
         .byte 1
         .opcode_not:
-        xor ah, ah
+        xor eax, eax
         cmp word ptr [rbp + 2*rbx], 0
         sete al
         mov [rbp + 2*rbx], ax
@@ -256,7 +256,7 @@ run:
         .org .jumptable + JT_SPACING*6
         .byte 2
         .opcode_mul:
-        # imul doesn't permit an indirect source, only indirect dst,
+        # imul doesn't permit an indirect dst, only indirect source,
         # so this works a bit differently from addition
         lea rdi, [rbp + 2*rbx]
         movzx eax, word ptr [rdi]
