@@ -1,6 +1,6 @@
 set ft=
 
-syntax keyword ppx_kwd lit hlt nop get lit not add mul max dmp sav chr num chi
+syntax keyword ppx_kwd hlt nop get lit not add mul max dmp sav chr num chi
 syntax match   ppx_sym "[$?]"
 syntax match   ppx_lbl "\v\h\w*:?"
 syntax match   ppx_num "\v\d+"
