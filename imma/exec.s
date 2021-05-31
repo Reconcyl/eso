@@ -317,6 +317,6 @@ run:
         mov ebx, 0xffff # bx == -1
         test eax, eax
         # it's not guaranteed that EOF == -1, only that EOF < 0
-        cmovs ebx, eax
+        cmovns ebx, eax
         mov [rbp + 2*rdi], bx
         jmp .run_ins

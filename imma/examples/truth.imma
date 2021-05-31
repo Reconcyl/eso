@@ -1,0 +1,25 @@
+; A truth-machine. Input and output are ASCII characters.
+
+; Behavior for various input characters:
+; '0': output 0 and halt
+; '1': output 1s infinitely
+; '2': output 2 and crash on unimplemented opcode
+; '3': output 3, then 1s infinitely
+; '4': output 4 and halt
+; '5': output 5 and read all input, hanging on EOF
+; '6': output 6, then 1s infinitely
+; '7': output 7, then 1s infinitely
+; '8': output 8 and crash on unimplemented opcode
+; '9': output 9 and crash on unimplemented opcode
+
+    a
+b:  lit chr a
+    lit c ret
+a:  chi ? -48 1
+    lit ret:b 0
+c:  lit add a
+    lit d ret
+    lit a 0
+d:  lit num a+2
+    lit a+2 ret
+    lit a+1 0
