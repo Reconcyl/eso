@@ -1,0 +1,36 @@
+; A cat program. Each of the labeled blocks ends up being
+; executed in alphabetical order during the loop. They are
+; positioned in the order they are for a reason.
+
+        a
+
+        ; Setup to store the character at `ch`.
+b:      lit c ret
+        lit lit cmd
+        lit cmd 0
+
+        ; Setup to negate the character.
+c:      lit d ret
+        lit mul cmd
+        lit -1 cmd+2
+        lit cmd 0
+
+        ; Setup to run the decremented, negated character as an opcode.
+e:      lit f ret
+        lit cmd+1 0
+
+f:      chr ch:? ; Must be positioned such that 12 < ch!
+
+        ; Setup to read the character.
+a:      lit b ret
+        lit lit ret-1 ; Slower, but lets us elide more trailing zeros.
+        lit chi cmd
+        lit ch cmd+2
+        lit cmd 0
+
+        ; Setup to subtract 1 from the negated character.
+d:      lit e ret
+        lit add cmd
+
+cmd:    ? ? ?
+        ? ret:? 0
