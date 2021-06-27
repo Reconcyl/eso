@@ -248,11 +248,11 @@ const ParseState = struct {
                         if (c == '"') parse_err = err ++ note
                         else parse_err = err;
                         return error.NoParse;
-                    }
+                    },
                 }
                 self.mode = .str;
                 return .advance;
-            }
+            },
 
         }
     }
@@ -263,7 +263,7 @@ const ParseState = struct {
                 parse_err = "unterminated string literal";
                 return error.NoParse;
             },
-            else => {}
+            else => {},
         }
         // the pointer is only used when parsing labels so it's OK to
         // pass an undefined value
@@ -327,14 +327,14 @@ const LabelDict = struct {
 
         var fwd_refs: *ArrayList(LabelFwdRef) = undefined;
         if (res.found_existing) {
-            switch (res.entry.value) {
+            switch (res.value_ptr.*) {
                 .pos => |n| return n +% delta,
                 .fwd_refs => |*refs| fwd_refs = refs,
             }
         } else {
             const refs = ArrayList(LabelFwdRef).init(self.entries.allocator);
-            res.entry.value = .{ .fwd_refs = refs };
-            fwd_refs = &res.entry.value.fwd_refs;
+            res.value_ptr.* = .{ .fwd_refs = refs };
+            fwd_refs = &res.value_ptr.fwd_refs;
         }
 
         try fwd_refs.append(.{
@@ -347,12 +347,12 @@ const LabelDict = struct {
     fn define(self: *LabelDict, name: []const u8) !void {
         var res = try self.entries.getOrPut(name);
         if (res.found_existing) {
-            switch (res.entry.value) {
+            switch (res.value_ptr.*) {
                 .pos => {
                     parse_err = try std.fmt.allocPrint(
                         self.entries.allocator,
                         "label `{s}` defined twice",
-                        .{res.entry.key},
+                        .{res.key_ptr.*},
                     );
                     parse_err_is_owned = true;
                     return error.NoParse;
@@ -365,16 +365,17 @@ const LabelDict = struct {
                 },
             }
         }
-        res.entry.value = .{ .pos = image_pos };
+        res.value_ptr.* = .{ .pos = image_pos };
     }
 
     fn assertNoUndefined(self: *LabelDict) !void {
-        for (self.entries.items()) |entry| switch (entry.value) {
+        var iter = self.entries.iterator();
+        while (iter.next()) |entry| switch (entry.value_ptr.*) {
             .fwd_refs => {
                 parse_err = try std.fmt.allocPrint(
                     self.entries.allocator,
                     "label `{s}` referenced but not defined",
-                    .{entry.key},
+                    .{entry.key_ptr.*},
                 );
                 parse_err_is_owned = true;
                 return error.NoParse;
@@ -384,7 +385,8 @@ const LabelDict = struct {
     }
 
     fn deinit(self: *LabelDict) void {
-        for (self.entries.items()) |*entry| switch (entry.value) {
+        var iter = self.entries.iterator();
+        while (iter.next()) |entry| switch (entry.value_ptr.*) {
             .fwd_refs => |*refs| refs.deinit(),
             .pos => {},
         };
