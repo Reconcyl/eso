@@ -2,33 +2,33 @@
 
 .bss
 
-# The main state array is zero-initialized at the start of execution. It
-# consists of 2^16 values, each 16 bits, for a total of 2*65KB. However,
-# we reserve one extra byte for reasons which will become clear.
+// The main state array is zero-initialized at the start of execution. It
+// consists of 2^16 values, each 16 bits, for a total of 2*65KB. However,
+// we reserve one extra byte for reasons which will become clear.
 .equ MEMSZ, 0x20000
 .equ MEMBUFSZ, MEMSZ + 1
 MEM: .skip MEMBUFSZ
 
-# Whether to suppress warning messages (indicated by the '-q' flag)
+// Whether to suppress warning messages (indicated by the '-q' flag)
 QUIET: .byte 0
 
 .text
 
 .global main
-# rdi holds argc, rsi holds argv
+// rdi holds argc, rsi holds argv
 main:
-    # store the program name in rbp
+    // store the program name in rbp
     mov rbp, [rsi]
 
-    # if one arg is passed, treat it as a filename
+    // if one arg is passed, treat it as a filename
     cmp edi, 2
     je .readfile
 
-    # if two args are passed...
+    // if two args are passed...
     cmp edi, 3
     jne .usage
 
-    # and the first is '-q'...
+    // and the first is '-q'...
     lea rbx, [rsi + 8]
     mov rsi, [rbx]
     mov rdi, offset quiet_flag
@@ -36,12 +36,12 @@ main:
     test eax, eax
     jnz .usage
 
-    # then set the quiet flag...
+    // then set the quiet flag...
     inc byte ptr [QUIET]
-    # and treat the second argument as a filename
+    // and treat the second argument as a filename
     mov rsi, rbx
 
-    # precondition: [rsi + 8] is a pointer to the file name
+    // precondition: [rsi + 8] is a pointer to the file name
     .readfile:
     mov rdi, [rsi + 8]
     mov rsi, offset read_mode
@@ -49,15 +49,15 @@ main:
     test eax, eax
     jz .ioerror
 
-    # continue reading to MEM in a loop until one of the following:
-    # - the buffer is full (rbp == 0)
-    # - there isn't anything left to read (fread returns 0)
-    # the following state registers are used:
-    # - rbx: pointer to the part of the buffer to read from
-    # - ebp: remaining size in the buffer
-    # - r12: file pointer
-    # - r13: errno location - it should be fine to cache it
-    #        rather than calling the function every time
+    // continue reading to MEM in a loop until one of the following:
+    // - the buffer is full (rbp == 0)
+    // - there isn't anything left to read (fread returns 0)
+    // the following state registers are used:
+    // - rbx: pointer to the part of the buffer to read from
+    // - ebp: remaining size in the buffer
+    // - r12: file pointer
+    // - r13: errno location - it should be fine to cache it
+    //        rather than calling the function every time
     mov rbx, offset MEM
     mov ebp, MEMBUFSZ
     mov r12, rax # from the fopen call
@@ -65,49 +65,49 @@ main:
     mov r13, rax
 
     .fillmem:
-    # read from the file
+    // read from the file
     mov rdi, rbx
     mov esi, 1
     mov edx, ebp
     mov rcx, r12
     call fread
 
-    # exit early if errno is nonzero
+    // exit early if errno is nonzero
     mov ebx, [r13]
     test ebx, ebx
     jnz .closeioerror
 
-    # increment buffer and decrement capacity by the number of bytes read
+    // increment buffer and decrement capacity by the number of bytes read
     add rbx, rax
     sub ebp, eax
 
-    # if there is no space left in the buffer, this means we read
-    # more than MEMSZ from the file - this should produce a warning
+    // if there is no space left in the buffer, this means we read
+    // more than MEMSZ from the file - this should produce a warning
     mov rdi, offset file_too_big
     test ebp, ebp
     jz .done_reading_weird_size
 
-    # otherwise, if this read succeeded, keep reading
+    // otherwise, if this read succeeded, keep reading
     test eax, eax
     jnz .fillmem
 
-    # otherwise, if there was exactly 1 byte of capacity remaining,
-    # then the file was exactly the right size
+    // otherwise, if there was exactly 1 byte of capacity remaining,
+    // then the file was exactly the right size
     dec ebp
     jz .done_reading
 
-    # otherwise, produce a warning as the file is smaller than MEMSZ
+    // otherwise, produce a warning as the file is smaller than MEMSZ
     mov rdi, offset file_too_small
 
-    # precondition: rdi points to the error message
+    // precondition: rdi points to the error message
     .done_reading_weird_size:
-    # don't warn if the quiet flag is set
+    // don't warn if the quiet flag is set
     movzx eax, byte ptr [QUIET]
     test al, al
     jg .done_reading
 
-    # TODO: write to stderr instead (I can't seem to get accessing the
-    # global variable to work)
+    // TODO: write to stderr instead (I can't seem to get accessing the
+    // global variable to work)
     call puts
 
     .done_reading:
@@ -120,13 +120,13 @@ main:
     call fclose
 
     .ioerror:
-    # print the error and return 1
+    // print the error and return 1
     mov rdi, offset error_prefix
     call perror
     mov eax, 1
     ret
 
-    # print an error message and return 1
+    // print an error message and return 1
     .usage:
     mov rdi, offset usage
     mov rsi, rbp
@@ -167,42 +167,42 @@ run:
 
     .run_ins:
 
-    # load the current IP value and increment it
+    // load the current IP value and increment it
     movzx ebx, word ptr MEM[0]
 
-    # load the current opcode
+    // load the current opcode
     movzx edi, word ptr [rbp + 2*rbx]
 
-    # increment the loaded IP value and store it back
+    // increment the loaded IP value and store it back
     inc bx
     mov MEM[0], bx
 
-    # if the opcode is out of bounds, move to the next instruction
+    // if the opcode is out of bounds, move to the next instruction
     cmp edi, 12
     ja .run_ins
 
-    # calculate the address to the handler for this opcode
+    // calculate the address to the handler for this opcode
     .equ JT_SPACING_BITS, 5
     .equ JT_SPACING, 1<<JT_SPACING_BITS
     mov esi, edi
     shl esi, JT_SPACING_BITS
     add rsi, offset .jumptable
 
-    # otherwise...
-    # read the first byte from the table entry
+    // otherwise...
+    // read the first byte from the table entry
     movzx eax, byte ptr [rsi]
-    # and increase the IP by that amount
+    // and increase the IP by that amount
     add MEM[0], ax
 
-    # jump to the next part of the entry
+    // jump to the next part of the entry
     inc rsi
     jmp rsi
 
-    # preconditions for each entry:
-    # - `rbx` holds the index of the first argument to the opcode
-    # - `rbp` holds `offset MEM` (for shorter encoding)
-    # each entry might clobber `rbx` or anything clobbered by
-    # a function (`rax`, `rdi`, etc.)
+    // preconditions for each entry:
+    // - `rbx` holds the index of the first argument to the opcode
+    // - `rbp` holds `offset MEM` (for shorter encoding)
+    // each entry might clobber `rbx` or anything clobbered by
+    // a function (`rax`, `rdi`, etc.)
     .jumptable:
 
         .org .jumptable + JT_SPACING*0
@@ -245,8 +245,8 @@ run:
         .org .jumptable + JT_SPACING*5
         .byte 2
         .opcode_add:
-        # use rdi to store a pointer to the first argument,
-        # because we're going to be changing `bx`
+        // use rdi to store a pointer to the first argument,
+        // because we're going to be changing `bx`
         lea rdi, [rbp + 2*rbx]
         inc bx
         movzx eax, word ptr [rbp + 2*rbx]
@@ -256,8 +256,8 @@ run:
         .org .jumptable + JT_SPACING*6
         .byte 2
         .opcode_mul:
-        # imul doesn't permit an indirect dst, only indirect source,
-        # so this works a bit differently from addition
+        // imul doesn't permit an indirect dst, only indirect source,
+        // so this works a bit differently from addition
         lea rdi, [rbp + 2*rbx]
         movzx eax, word ptr [rdi]
         inc bx
@@ -316,7 +316,7 @@ run:
         mov edi, ebx
         mov ebx, 0xffff # bx == -1
         test eax, eax
-        # it's not guaranteed that EOF == -1, only that EOF < 0
+        // it's not guaranteed that EOF == -1, only that EOF < 0
         cmovns ebx, eax
         mov [rbp + 2*rdi], bx
         jmp .run_ins
