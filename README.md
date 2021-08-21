@@ -6,6 +6,7 @@ Regardless, I hope you find them interesting.
 
 | Name     | About
 | -------- | -----------------------
+| `9f8`            | 9f87m4atttaaaou; compiler.
 | `aubers`         | Aubergine interpreter.
 | `betaload`       | Underload extension providing input and some bells and whistles.
 | `boolet`         | Attempt at an efficient Boolet interpreter.
