@@ -5,8 +5,8 @@ mlton: main
 repl:
 	sml main.sml
 
-main: main.sml
-	mlton main.sml
+main: build_mlton.mlb *.sml
+	mlton -output $@ $<
 
 .PHONY: clean
 clean:
