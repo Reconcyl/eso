@@ -10,4 +10,4 @@ main: main.sml
 
 .PHONY: clean
 clean:
-	rm main
+	rm -f main
