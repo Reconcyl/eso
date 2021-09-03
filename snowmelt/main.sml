@@ -22,20 +22,19 @@ datatype value
   | TestFail
 
 type ctx = {
-  stack: (int * value list) ref,
-  stackStrictMode: bool
+  stack: (int * value list) ref
 }
 
-fun push ({stack, ...}: ctx, x) =
+fun push ({stack}, x) =
   let val (h, xs) = !stack in stack := (h + 1, x :: xs) end
 
-fun pop {stack, stackStrictMode = strict} =
+fun pop {stack} =
   case !stack of
-       (_, []) => if strict then TestFail else I
+       (_, []) => I
      | (h, (x :: xs)) => (stack := (h - 1, xs); x)
 
-fun stackHeight ({stack, stackStrictMode = strict}: ctx) =
-  if strict then NONE else SOME (#1 (!stack))
+
+fun stackHeight ({stack}: ctx) = #1 (!stack)
 
 fun apply (ctx, f, x) =
   case (f, x) of
@@ -120,10 +119,7 @@ and reduceComp (ctx, exprs): value =
 
 and eval (ctx, expr) =
   case expr of
-       E.Height   =>
-       (case stackHeight ctx of
-             SOME n => ChurchNum n
-           | NONE => TestFail)
+       E.Height   => ChurchNum (stackHeight ctx)
      | E.K        => K
      | E.S        => S
      | E.I        => I
@@ -132,3 +128,33 @@ and eval (ctx, expr) =
      | E.Block es => Block es
      | E.App es   => reduce (ctx, es)
      | E.Comp es  => reduceComp (ctx, es)
+
+fun toInt value =
+  let fun fallback () =
+    let
+      val stack = ref (0, [])
+      val ctx = {stack = stack}
+    in
+      case apply (ctx, apply (ctx, value, TestSucc), TestN 0) of
+           TestN n => if #1 (!stack) = 0 then SOME n else NONE
+         | _ => NONE
+    end
+  in
+    case value of
+         K => NONE
+       | K1 I => SOME 0
+       | K1 _ => fallback ()
+       | S => NONE
+       | S1 _ => fallback ()
+       | S2 _ => fallback ()
+       | I => SOME 1
+       | Comp _ => fallback ()
+       | Block _ => fallback ()
+       | ChurchSucc => NONE
+       | ChurchNum n => SOME n
+       | ChurchNum1 (0, _) => SOME 1
+       | ChurchNum1 _ => fallback ()
+       | TestN _ => NONE
+       | TestSucc => NONE
+       | TestFail => NONE
+  end
