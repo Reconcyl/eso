@@ -2,8 +2,8 @@ all: mlton
 
 .PHONY: mlton, repl
 mlton: main
-repl:
-	sml main.sml
+repl: build_smlnj.cm *.sml
+	sml $<
 
 main: build_mlton.mlb *.sml
 	mlton -output $@ $<

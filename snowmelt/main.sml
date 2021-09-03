@@ -1,26 +1,9 @@
-structure String :> sig
-  include STRING where type string = string
-                 where type char = char
-  val iter: string * (int * char -> unit) -> unit
-end = struct
-  open String
-  fun iter (s, f) =
-    let fun go (f, s, len: int, idx: int) =
-      if Int.< (idx, len) then
-        (f (idx, (sub (s, idx))); go (f, s, len, idx + 1))
-      else ()
-    in go (f, s, size s, 0) end
-end
+signature EXPR_Main = EXPR
+structure E = Expr (TextIO.StreamIO)
+type expr = E.expr
 
 fun repeat (0, f, x) = x
   | repeat (n, f, x) = repeat (n - 1, f, f x)
-
-datatype expr
-  = EHeight | EK | ES | EI | EPop
-  | EPush of expr vector
-  | EBlock of expr vector
-  | EApp of expr vector
-  | EComp of expr vector
 
 datatype value
   = K
@@ -38,56 +21,6 @@ datatype value
   | TestSucc
   | TestFail
 
-datatype bracket = Paren | Square | Angle | Brace
-exception UnmatchedClose of int * bracket
-exception UnmatchedOpen of int * bracket
-
-fun parse (s: string): expr vector =
-  let
-    type chain = expr list (* stored in reverse order *)
-    val ch2v = vector o rev (* convert to a vector *)
-
-    val brackets: (int * bracket * chain) list ref = ref []
-    val curChain: chain ref = ref []
-
-    fun push (idx, bracket) =
-      (brackets := (idx, bracket, !curChain) :: !brackets;
-       curChain := [])
-
-    fun pop (idx, bracket, chainToExpr: chain -> expr) =
-      case !brackets of
-           (_, openBracket, prevChain) :: brackets' =>
-             (if openBracket <> bracket then
-               raise UnmatchedClose (idx, bracket)
-              else ();
-              curChain := chainToExpr (!curChain) :: prevChain;
-              brackets := brackets')
-         | [] => raise UnmatchedClose (idx, bracket)
-
-    fun handleChar (idx, c) = case c of
-         #"[" => push (idx, Square)
-       | #"(" => push (idx, Paren)
-       | #"<" => push (idx, Angle)
-       | #"{" => push (idx, Brace)
-       | #"]" => pop (idx, Square, fn [] => EHeight
-                                    | [e] => e
-                                    | ch => EApp (ch2v ch))
-       | #")" => pop (idx, Paren, fn [] => EK
-                                   | ch => EPush (ch2v ch))
-       | #">" => pop (idx, Angle, fn [] => ES
-                                   | [e] => e
-                                   | ch => EComp (ch2v ch))
-       | #"}" => pop (idx, Brace, fn [] => EPop
-                                   | [EPop] => EI
-                                   | ch => EBlock (ch2v ch))
-       | _ => ()
-  in
-    String.iter (s, handleChar);
-    case !brackets of
-        [] => ch2v (!curChain)
-      | (idx, bracket, _) :: _ => raise UnmatchedOpen (idx, bracket)
-  end
-
 type ctx = {
   stack: (int * value list) ref,
   stackStrictMode: bool
@@ -101,8 +34,8 @@ fun pop {stack, stackStrictMode = strict} =
        (_, []) => if strict then TestFail else I
      | (h, (x :: xs)) => (stack := (h - 1, xs); x)
 
-fun stackHeight {stackStrictMode = false, stack} = NONE
-  | stackHeight {stack = ref (h, _), ...} = SOME h
+fun stackHeight ({stack, stackStrictMode = strict}: ctx) =
+  if strict then NONE else SOME (#1 (!stack))
 
 fun apply (ctx, f, x) =
   case (f, x) of
@@ -187,15 +120,15 @@ and reduceComp (ctx, exprs): value =
 
 and eval (ctx, expr) =
   case expr of
-       EHeight   =>
+       E.Height   =>
        (case stackHeight ctx of
              SOME n => ChurchNum n
            | NONE => TestFail)
-     | EK        => K
-     | ES        => S
-     | EI        => I
-     | EPop      => pop ctx
-     | EPush es  => let val res = reduce (ctx, es) in (push (ctx, res); res) end
-     | EBlock es => Block es
-     | EApp es   => reduce (ctx, es)
-     | EComp es  => reduceComp (ctx, es)
+     | E.K        => K
+     | E.S        => S
+     | E.I        => I
+     | E.Pop      => pop ctx
+     | E.Push es  => let val res = reduce (ctx, es) in (push (ctx, res); res) end
+     | E.Block es => Block es
+     | E.App es   => reduce (ctx, es)
+     | E.Comp es  => reduceComp (ctx, es)
