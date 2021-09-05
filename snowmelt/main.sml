@@ -1,4 +1,3 @@
-signature EXPR_Main = EXPR
 structure E = Expr (TextIO.StreamIO)
 type expr = E.expr
 
@@ -33,7 +32,6 @@ fun pop {stack} =
        (_, []) => I
      | (h, (x :: xs)) => (stack := (h - 1, xs); x)
 
-
 fun stackHeight ({stack}: ctx) = #1 (!stack)
 
 fun apply (ctx, f, x) =
@@ -56,6 +54,7 @@ fun apply (ctx, f, x) =
      | (ChurchSucc, I) => ChurchNum 2
      | (ChurchSucc, ChurchNum n) => ChurchNum (n + 1)
      | (ChurchSucc, x) => S2 (Comp (S, K), x)
+     | (ChurchNum n, ChurchNum1 (m, f)) => ChurchNum1 (n * m, f)
      | (ChurchNum n, f) => ChurchNum1 (n, f)
      | (ChurchNum1 (n, ChurchSucc), K1 I) => ChurchNum n
      | (ChurchNum1 (n, ChurchSucc), I) => ChurchNum (n + 1)
