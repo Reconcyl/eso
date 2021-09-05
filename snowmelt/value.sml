@@ -1,12 +1,13 @@
 signature VALUE = sig
-  type expr
+  structure Expr: EXPR
   type value
   type ctx
 
   val init: unit -> ctx
   val push: ctx * value -> unit
-  val eval: ctx * expr -> value
+  val reduce: ctx * Expr.expr vector -> value
 
+  val fromInt: int -> value
   val toInt: value -> int option
 end
 
@@ -17,7 +18,7 @@ struct
   fun repeat (0, f, x) = x
     | repeat (n, f, x) = repeat (n - 1, f, f x)
 
-  type expr = E.expr
+  structure Expr = E
 
   datatype value
     = K
@@ -27,7 +28,7 @@ struct
     | S2 of value * value
     | I
     | Comp of value * value
-    | Block of expr vector
+    | Block of E.expr vector
     | ChurchSucc
     | ChurchNum of int
     | ChurchNum1 of int * value
@@ -138,10 +139,12 @@ struct
        | E.S        => S
        | E.I        => I
        | E.Pop      => pop ctx
-       | E.Push es  => let val res = reduce (ctx, es) in (push (ctx, res); res) end
+       | E.Push es  => let val res = reduce (ctx, es) in push (ctx, res); res end
        | E.Block es => Block es
        | E.App es   => reduce (ctx, es)
        | E.Comp es  => reduceComp (ctx, es)
+
+  fun fromInt n = ChurchNum n
 
   fun toInt value =
     let fun fallback () =

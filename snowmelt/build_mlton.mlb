@@ -3,4 +3,5 @@ local
   expr.sml
   value.sml
   main.sml
+  main_mlton.sml
 in end
