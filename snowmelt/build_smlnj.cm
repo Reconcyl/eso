@@ -1,4 +1,5 @@
 Group is
     $/basis.cm
     expr.sml
+    value.sml
     main.sml

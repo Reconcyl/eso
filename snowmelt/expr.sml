@@ -20,7 +20,7 @@ signature EXPR_IO = STREAM_IO
   where type vector = string
   where type elem = char
 
-functor Expr (Io: EXPR_IO): EXPR =
+functor Expr (Io: EXPR_IO) :> EXPR =
 struct
 
   structure String : sig

@@ -1,5 +1,6 @@
 local
   $(SML_LIB)/basis/basis.mlb
   expr.sml
+  value.sml
   main.sml
 in end
