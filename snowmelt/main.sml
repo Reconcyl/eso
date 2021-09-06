@@ -53,6 +53,10 @@ fun finalize (first, final) =
   in final (); res end
 
 structure Syntax = Syntax (TextIO.StreamIO)
+structure Value = Value (
+  structure Io = TextIO.StreamIO;
+  structure Syntax = Syntax
+)
 
 type pgm = Expr.expr vector
 datatype awaiting = Default | File | Literal

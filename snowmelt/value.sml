@@ -8,9 +8,16 @@ signature VALUE = sig
 
   val fromInt: int -> value
   val toInt: value -> int option
+
+  type outstream
+  val display: outstream * value -> unit
 end
 
-structure Value :> VALUE = struct
+functor Value (
+  structure Io: SYNTAX_IO;
+  structure Syntax: SYNTAX where type outstream = Io.outstream
+) :> VALUE where type outstream = Io.outstream =
+struct
 
   (* apply `f` to `x` a given number of times *)
   fun repeat (0, f, x) = x
@@ -173,5 +180,45 @@ structure Value :> VALUE = struct
          | TestSucc => NONE
          | TestFail => NONE
     end
+
+  type outstream = Io.outstream
+  fun display (os, ChurchNum n) = Io.output (os, Int.toString n)
+    | display (os, value) =
+        let
+          fun s str = Io.output (os, str)
+          fun c chr = Io.output1 (os, chr)
+
+          datatype Pos = Hd | Arg | Cmp
+
+          fun go (_,   K)          = s "()"
+            | go (Hd,  K1 x)       = (s "()"; go (Arg, x))
+            | go (_,   S)          = s "<>"
+            | go (Hd,  S1 x)       = (s "<>"; go (Arg, x))
+            | go (Hd,  S2 (x,y))   = (s "<>"; go (Arg, x); go (Arg, y))
+            | go (_,   I)          = s "{{}}"
+            | go (Cmp, Comp (x,y)) = (go (Cmp, x); go (Cmp, y))
+            | go (_,   Comp (x,y)) = (c #"<"; go (Cmp, x); go (Cmp, y); c #">")
+            | go (_,   Block es)   =
+                (c #"{";
+                 Vector.app (fn e => Syntax.display (os, e)) es;
+                 c #"}")
+
+            | go (Hd,  ChurchSucc)       = s "<><<>()>"
+            | go (_,   ChurchNum n)      = s (Int.toString n)
+            | go (Hd,  ChurchNum1 (n,f)) = (s (Int.toString n); c #" "; go (Arg, f))
+
+            | go (_, TestN n)  = s ("[!" ^ Int.toString n ^ "]")
+            | go (_, TestSucc) = s "[!succ]"
+            | go (_, TestFail) = s "[!fail]"
+
+            | go (Arg, x) = (c #"["; go (Hd, x); c #"]")
+            | go (Cmp, x) = (c #"["; go (Hd, x); c #"]")
+
+        in
+          case toInt value of
+               SOME n => Io.output (os, "(" ^ Int.toString n ^ ") ")
+             | NONE => ();
+          go (Hd, value)
+        end
 
 end
