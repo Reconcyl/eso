@@ -6,9 +6,9 @@ signature EXPR = sig
     | App of expr vector
     | Comp of expr vector
 
+  datatype role = Open | Close
   datatype bracket = Paren | Square | Angle | Brace
-  exception UnmatchedClose of int * bracket
-  exception UnmatchedOpen of int * bracket
+  exception Unmatched of int * role * bracket
 
   val parse: string -> expr vector
 
@@ -43,9 +43,9 @@ struct
     | App of expr vector
     | Comp of expr vector
 
+  datatype role = Open | Close
   datatype bracket = Paren | Square | Angle | Brace
-  exception UnmatchedClose of int * bracket
-  exception UnmatchedOpen of int * bracket
+  exception Unmatched of int * role * bracket
 
   fun parse (s: string): expr vector =
     let
@@ -63,11 +63,11 @@ struct
         case !brackets of
              (_, openBracket, prevChain) :: brackets' =>
                (if openBracket <> bracket then
-                 raise UnmatchedClose (idx, bracket)
+                 raise Unmatched (idx, Close, bracket)
                 else ();
                 curChain := chainToExpr (!curChain) :: prevChain;
                 brackets := brackets')
-           | [] => raise UnmatchedClose (idx, bracket)
+           | [] => raise Unmatched (idx, Close, bracket)
 
       fun handleChar (idx, c) = case c of
            #"[" => push (idx, Square)
@@ -90,7 +90,7 @@ struct
       String.iter (s, handleChar);
       case !brackets of
           [] => ch2v (!curChain)
-        | (idx, bracket, _) :: _ => raise UnmatchedOpen (idx, bracket)
+        | (idx, bracket, _) :: _ => raise Unmatched (idx, Open, bracket)
     end
 
   type outstream = Io.outstream
