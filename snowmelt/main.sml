@@ -52,10 +52,9 @@ fun finalize (first, final) =
     (final (); raise err)
   in final (); res end
 
-structure E = Expr (TextIO.StreamIO)
-structure V = Value (E)
+structure Syntax = Syntax (TextIO.StreamIO)
 
-type pgm = E.expr vector
+type pgm = Expr.expr vector
 datatype awaiting = Default | File | Literal
 
 datatype ioFormat = FInt | FByte | FUnicode | FDebug | FNone | FDefault
@@ -209,22 +208,23 @@ fun readFile path =
       errExit ("cannot read file '" ^ path ^ "': " ^ msg)
 
 fun pushProgram ({pgms, awaiting, ...}: config, code, kind, arg) =
-  let val pgm = E.parse code in
+  let val pgm = Syntax.parse code in
     pgms := pgm :: !pgms;
     awaiting := Default
   end
-    handle E.Unmatched (pos, role, bracket) =>
+    handle Syntax.Unmatched (pos, role, bracket) =>
       let
+        open Syntax
         val bracket =
           case (role, bracket) of
-               (E.Open, E.Paren)   => "("
-             | (E.Open, E.Square)  => "["
-             | (E.Open, E.Angle)   => "<"
-             | (E.Open, E.Brace)   => "{"
-             | (E.Close, E.Paren)  => ")"
-             | (E.Close, E.Square) => "]"
-             | (E.Close, E.Angle)  => ">"
-             | (E.Close, E.Brace)  => "}"
+               (Open, Paren)   => "("
+             | (Open, Square)  => "["
+             | (Open, Angle)   => "<"
+             | (Open, Brace)   => "{"
+             | (Close, Paren)  => ")"
+             | (Close, Square) => "]"
+             | (Close, Angle)  => ">"
+             | (Close, Brace)  => "}"
       in
         errExit ("cannot parse " ^ kind ^ " '" ^ arg ^ "': unmatched '"
           ^ bracket ^ "' at position " ^ Int.toString (pos + 1) ^ "\n")
@@ -258,6 +258,26 @@ fun update (config: config) arg =
                    | NONE => treatArgAsFile ()
   end
 
+fun runWith (config: config) =
+  let
+    val ctx = Value.init ()
+    val inputFn = mkReader (!(#iFormat config))
+    (* read all inputs *)
+    val () =
+      let fun go () =
+        case inputFn () of
+             NONE => ()
+           | SOME i => (Value.push (ctx, Value.fromInt i); go ())
+      in go () end
+    (* push additional stack values *)
+    val () = app (fn i => Value.push (ctx, Value.fromInt i)) (rev (!(#argInputs config)))
+    (* run the program *)
+    val aggregatePgm = vector (map (fn pgm => Expr.App pgm) (!(#pgms config)))
+    val result = Value.reduce (ctx, aggregatePgm)
+  in
+    ()
+  end
+
 fun main (name, argv) =
   let val config = {
     progName    = name,
@@ -272,5 +292,6 @@ fun main (name, argv) =
   } in
     app (update config) argv;
     resolveDefaults config;
-    validate config
+    validate config;
+    runWith config
   end

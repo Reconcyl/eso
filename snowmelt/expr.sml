@@ -1,27 +1,31 @@
-signature EXPR = sig
+structure Expr = struct
   datatype expr
     = Height | K | S | I | Pop
     | Push of expr vector
     | Block of expr vector
     | App of expr vector
     | Comp of expr vector
+end
 
+signature SYNTAX = sig
   datatype role = Open | Close
   datatype bracket = Paren | Square | Angle | Brace
   exception Unmatched of int * role * bracket
 
-  val parse: string -> expr vector
+  val parse: string -> Expr.expr vector
 
   type outstream
-  val display: outstream * expr -> unit
+  val display: outstream * Expr.expr -> unit
 end
 
-signature EXPR_IO = STREAM_IO
+signature SYNTAX_IO = STREAM_IO
   where type vector = string
   where type elem = char
 
-functor Expr (Io: EXPR_IO) :> EXPR =
+functor Syntax (Io: SYNTAX_IO) : SYNTAX =
 struct
+
+  open Expr
 
   structure String : sig
     include STRING
@@ -35,13 +39,6 @@ struct
         else ()
       in go (f, s, size s, 0) end
   end
-
-  datatype expr
-    = Height | K | S | I | Pop
-    | Push of expr vector
-    | Block of expr vector
-    | App of expr vector
-    | Comp of expr vector
 
   datatype role = Open | Close
   datatype bracket = Paren | Square | Angle | Brace

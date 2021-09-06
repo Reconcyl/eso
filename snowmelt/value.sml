@@ -1,5 +1,4 @@
 signature VALUE = sig
-  structure Expr: EXPR
   type value
   type ctx
 
@@ -11,14 +10,13 @@ signature VALUE = sig
   val toInt: value -> int option
 end
 
-functor Value (E: EXPR) :> VALUE =
-struct
+structure Value :> VALUE = struct
 
   (* apply `f` to `x` a given number of times *)
   fun repeat (0, f, x) = x
     | repeat (n, f, x) = repeat (n - 1, f, f x)
 
-  structure Expr = E
+  structure E = Expr
 
   datatype value
     = K
