@@ -125,6 +125,8 @@ fun mkReader FInt =
                   )
                 ) end
       )
+  | mkReader FDebug =
+      errExit "cannot input using debug representation"
   | mkReader FNone =
       (fn () => NONE)
   | mkReader FDefault = raise Fail "shouldn't pass this"
