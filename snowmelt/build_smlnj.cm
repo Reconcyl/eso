@@ -1,4 +1,16 @@
-Group is
+Library
+    structure Expr
+
+    signature SYNTAX
+    signature SYNTAX_IO
+    functor Syntax
+
+    signature VALUE
+    functor Value
+
+    signature MAIN
+    structure Main
+is
     $/basis.cm
     expr.sml
     value.sml

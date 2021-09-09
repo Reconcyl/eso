@@ -1,1 +1,1 @@
-val () = main (CommandLine.name (), CommandLine.arguments ())
+val () = Main.main (CommandLine.name (), CommandLine.arguments ())

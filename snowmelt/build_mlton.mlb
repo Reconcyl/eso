@@ -4,4 +4,16 @@ local
   value.sml
   main.sml
   main_mlton.sml
-in end
+in
+  structure Expr
+
+  signature SYNTAX
+  signature SYNTAX_IO
+  functor Syntax
+
+  signature VALUE
+  functor Value
+
+  signature MAIN
+  structure Main
+end
