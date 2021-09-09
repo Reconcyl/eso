@@ -13,11 +13,11 @@ fun showHelp (progName, isOk) =
       , "Options:"
       , "    -h"
       , "        Print this help message."
-      , "    -i{format}, -i={format}"
+      , "    -I{format}, -I={format}"
       , "        Set the input format."
-      , "    -o{format}, -o={format}"
+      , "    -O{format}, -O={format}"
       , "        Set the output format."
-      , "    -r{format}, -r={format}"
+      , "    -R{format}, -R={format}"
       , "        Set the return value format."
       , "    -m"
       , "        Use magic impure functions for IO."
@@ -110,14 +110,13 @@ fun mkReader FInt =
                   if (a andb 0wx80) = 0w0 then
                     a (* ascii *)
                   else validate (
-                    case getContByte () of b =>
                     let val b = getContByte () in
                       if (a andb 0wxE0) = 0wxC0 then
                         b orb ((a andb 0wx1F) << 0w6)
                       else
                         let val c = getContByte () in
                           if (a andb 0wxF0) = 0wxE0 then
-                            c orb (b << 0w6) orb ((a andb 0wx0) << 0w12)
+                            c orb (b << 0w6) orb ((a andb 0wx0F) << 0w12)
                           else if (a andb 0wxF8) = 0wxF0 then
                             let val d = getContByte () in
                               d orb (c << 0w6) orb (b << 0w12) orb ((a andb 0wx07) << 0w18)
@@ -133,6 +132,44 @@ fun mkReader FInt =
   | mkReader FNone =
       (fn () => NONE)
   | mkReader FDefault = raise Fail "shouldn't pass this"
+
+fun writeCodePoint (code: Word32.word) =
+  let
+    open Word32
+    infix andb orb >>
+    val byte = print o str o Char.chr o toInt
+  in
+    if code < 0wx80 then
+      byte code
+    else if code < 0wx0800 then
+      (byte (((code >> 0w6)  andb 0wx1F) orb 0wxC0);
+       byte (((code >> 0w0)  andb 0wx3F) orb 0wx80))
+    else if code < 0wx010000 then
+      (byte (((code >> 0w12) andb 0wx0F) orb 0wxE0);
+       byte (((code >> 0w6)  andb 0wx3F) orb 0wx80);
+       byte (((code >> 0w0)  andb 0wx3F) orb 0wx80))
+    else if code < 0wx110000 then
+      (byte (((code >> 0w18) andb 0wx07) orb 0wxF0);
+       byte (((code >> 0w12) andb 0wx3F) orb 0wx80);
+       byte (((code >> 0w6)  andb 0wx3F) orb 0wx80);
+       byte (((code >> 0w0)  andb 0wx3F) orb 0wx80))
+    else
+      () (* invalid codepoints are silently ignored *)
+  end
+
+fun intOnly f v = case Value.toInt v of SOME n => f n | NONE => ()
+fun mkWriter FInt =
+      intOnly (print o Int.toString)
+  | mkWriter FByte =
+      intOnly (fn i => print (str (Char.chr (i mod 256))))
+  | mkWriter FUnicode =
+      intOnly (writeCodePoint o Word32.fromInt)
+  | mkWriter FDebug =
+      (fn v => (T.output (T.stdErr, "Output: ");
+                Value.display (T.getOutstream T.stdErr, v);
+                T.output1 (T.stdErr, #"\n")))
+  | mkWriter FNone = ignore
+  | mkWriter FDefault = raise Fail "shouldn't pass this"
 
 type config = {
   progName: string,
@@ -178,9 +215,9 @@ fun updateFlag (config: config) c =
        NONE =>
          (case c of
                #"h" => showHelp (#progName config, true)
-             | #"i" => #activeFormatParam config := SOME (#iFormat config)
-             | #"o" => #activeFormatParam config := SOME (#oFormat config)
-             | #"r" => #activeFormatParam config := SOME (#rFormat config)
+             | #"I" => #activeFormatParam config := SOME (#iFormat config)
+             | #"O" => #activeFormatParam config := SOME (#oFormat config)
+             | #"R" => #activeFormatParam config := SOME (#rFormat config)
              | #"c" => #awaiting config := Literal
              | #"f" => #awaiting config := Default
              | #"-" => #awaiting config := File
@@ -266,6 +303,7 @@ fun runWith (config: config) =
   let
     val ctx = Value.init ()
     val inputFn = mkReader (!(#iFormat config))
+    val outputFn = mkWriter (!(#oFormat config))
     (* read all inputs *)
     val () =
       let fun go () =
@@ -278,6 +316,15 @@ fun runWith (config: config) =
     (* run the program *)
     val aggregatePgm = vector (map (fn pgm => Expr.App pgm) (!(#pgms config)))
     val result = Value.reduce (ctx, aggregatePgm)
+    (* create a list of all outputs *)
+    val outputs =
+      let fun go os =
+        case Value.pop ctx of
+             NONE => os
+           | SOME v => go (v :: os)
+      in go [] end
+    (* write all outputs *)
+    val () = app outputFn outputs
   in
     ()
   end

@@ -4,6 +4,7 @@ signature VALUE = sig
 
   val init: unit -> ctx
   val push: ctx * value -> unit
+  val pop: ctx -> value option
   val reduce: ctx * Expr.expr vector -> value
 
   val fromInt: int -> value
@@ -49,6 +50,11 @@ struct
     let val (h, xs) = !stack in stack := (h + 1, x :: xs) end
 
   fun pop {stack} =
+    case !stack of
+         (_, []) => NONE
+       | (h, (x :: xs)) => (stack := (h - 1, xs); SOME x)
+
+  fun pop' {stack} =
     case !stack of
          (_, []) => I
        | (h, (x :: xs)) => (stack := (h - 1, xs); x)
@@ -143,7 +149,7 @@ struct
        | E.K        => K
        | E.S        => S
        | E.I        => I
-       | E.Pop      => pop ctx
+       | E.Pop      => pop' ctx
        | E.Push es  => let val res = reduce (ctx, es) in push (ctx, res); res end
        | E.Block es => Block es
        | E.App es   => reduce (ctx, es)
@@ -216,9 +222,9 @@ struct
 
         in
           case toInt value of
-               SOME n => Io.output (os, "(" ^ Int.toString n ^ ") ")
+               SOME n => Io.output (os, Int.toString n ^ "/")
              | NONE => ();
           go (Hd, value)
         end
 
-end
+end : VALUE where type outstream = Io.outstream
