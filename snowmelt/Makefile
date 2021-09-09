@@ -1,7 +1,9 @@
 all: mlton
 
-.PHONY: mlton, repl
+.PHONY: mlton, smlnj, repl
 mlton: main
+smlnj: build_smlnj.cm *.sml
+	ml-build $< Main.main main_smlnj
 repl: build_smlnj.cm *.sml
 	sml $<
 

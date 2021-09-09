@@ -1,5 +1,5 @@
 signature MAIN = sig
-  val main : string * string list -> unit
+  val main : string * string list -> OS.Process.status
 end
 
 structure Main : MAIN = struct
@@ -378,7 +378,8 @@ structure Main : MAIN = struct
       app (update config) argv;
       resolveDefaults config;
       validate config;
-      runWith config
+      runWith config;
+      OS.Process.success
     end
 
 end
