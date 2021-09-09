@@ -7,8 +7,10 @@ signature VALUE = sig
   val pop: ctx -> value option
   val reduce: ctx * Expr.expr vector -> value
 
-  val fromInt: int -> value
   val toInt: value -> int option
+  val fromInt: int -> value
+  val magicInput : (unit -> int option) -> value
+  val magicOutput : (value -> unit) -> value
 
   type outstream
   val display: outstream * value -> unit
@@ -41,6 +43,8 @@ struct
     | TestN of int
     | TestSucc
     | TestFail
+    | MagicInput of unit -> int option
+    | MagicOutput of value -> unit
 
   type ctx = { stack: (int * value list) ref }
 
@@ -91,6 +95,11 @@ struct
        | (TestSucc, TestN i) => (TestN (i + 1))
        | (TestSucc, _) => TestFail
        | (TestFail, _) => TestFail
+       | (MagicInput f, _) =>
+           (case f () of
+                 SOME n => ChurchNum n
+               | NONE => K)
+       | (MagicOutput f, v) => (f v; v)
 
   and reduce (ctx, exprs) =
     let
@@ -117,6 +126,8 @@ struct
         | pure (TestN _) = true
         | pure TestSucc = true
         | pure TestFail = true
+        | pure (MagicInput _) = false
+        | pure (MagicOutput _) = false
 
       (* compose f with the results of all expressions in the input vector starting from gIdx *)
       fun composeAt (f, gIdx) =
@@ -155,8 +166,6 @@ struct
        | E.App es   => reduce (ctx, es)
        | E.Comp es  => reduceComp (ctx, es)
 
-  fun fromInt n = ChurchNum n
-
   fun toInt value =
     let fun fallback () =
       let
@@ -185,7 +194,14 @@ struct
          | TestN _ => NONE
          | TestSucc => NONE
          | TestFail => NONE
+         | MagicInput _ => NONE
+         | MagicOutput _ => NONE
     end
+
+  fun fromInt n = ChurchNum n
+
+  fun magicInput f = MagicInput f
+  fun magicOutput f = MagicOutput f
 
   type outstream = Io.outstream
   fun display (os, ChurchNum n) = Io.output (os, Int.toString n)
@@ -216,6 +232,9 @@ struct
             | go (_, TestN n)  = s ("[!" ^ Int.toString n ^ "]")
             | go (_, TestSucc) = s "[!succ]"
             | go (_, TestFail) = s "[!fail]"
+
+            | go (_, MagicInput _) = s "[!input]"
+            | go (_, MagicOutput _) = s "[!output]"
 
             | go (Arg, x) = (c #"["; go (Hd, x); c #"]")
             | go (Cmp, x) = (c #"["; go (Hd, x); c #"]")

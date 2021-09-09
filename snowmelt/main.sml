@@ -158,8 +158,9 @@ fun writeCodePoint (code: Word32.word) =
   end
 
 fun intOnly f v = case Value.toInt v of SOME n => f n | NONE => ()
+
 fun mkWriter FInt =
-      intOnly (print o Int.toString)
+      intOnly (fn i => (print (Int.toString i); print " "))
   | mkWriter FByte =
       intOnly (fn i => print (str (Char.chr (i mod 256))))
   | mkWriter FUnicode =
@@ -171,6 +172,19 @@ fun mkWriter FInt =
   | mkWriter FNone = ignore
   | mkWriter FDefault = raise Fail "shouldn't pass this"
 
+fun mkReturner FInt =
+      intOnly (print o Int.toString)
+  | mkReturner FByte =
+      errExit "cannot format return value as byte"
+  | mkReturner FUnicode =
+      errExit "cannot format return value as unicode character"
+  | mkReturner FDebug =
+      (fn v => (T.output (T.stdErr, "Return: ");
+                Value.display (T.getOutstream T.stdErr, v);
+                T.output1 (T.stdErr, #"\n")))
+  | mkReturner FNone = ignore
+  | mkReturner FDefault = raise Fail "shouldn't pass this"
+
 type config = {
   progName: string,
   pgms: pgm list ref,
@@ -181,7 +195,8 @@ type config = {
   iFormat: ioFormat ref,
   oFormat: ioFormat ref,
   rFormat: ioFormat ref,
-  activeFormatParam: ioFormat ref option ref
+  activeFormatParam: ioFormat ref option ref,
+  magicIo: bool ref
 }
 
 fun resolveDefaults (config: config) =
@@ -218,6 +233,7 @@ fun updateFlag (config: config) c =
              | #"I" => #activeFormatParam config := SOME (#iFormat config)
              | #"O" => #activeFormatParam config := SOME (#oFormat config)
              | #"R" => #activeFormatParam config := SOME (#rFormat config)
+             | #"m" => #magicIo config := true
              | #"c" => #awaiting config := Literal
              | #"f" => #awaiting config := Default
              | #"-" => #awaiting config := File
@@ -304,27 +320,38 @@ fun runWith (config: config) =
     val ctx = Value.init ()
     val inputFn = mkReader (!(#iFormat config))
     val outputFn = mkWriter (!(#oFormat config))
-    (* read all inputs *)
+    val returnFn = mkReturner (!(#rFormat config))
+    val magic = !(#magicIo config)
     val () =
-      let fun go () =
-        case inputFn () of
-             NONE => ()
-           | SOME i => (Value.push (ctx, Value.fromInt i); go ())
-      in go () end
+      if magic then
+        (Value.push (ctx, Value.magicInput inputFn);
+         Value.push (ctx, Value.magicOutput outputFn))
+      else
+        (* read all inputs and push them to the stack *)
+        let fun go () =
+          case inputFn () of
+               NONE => ()
+             | SOME i => (Value.push (ctx, Value.fromInt i); go ())
+        in go () end
     (* push additional stack values *)
     val () = app (fn i => Value.push (ctx, Value.fromInt i)) (rev (!(#argInputs config)))
     (* run the program *)
     val aggregatePgm = vector (map (fn pgm => Expr.App pgm) (!(#pgms config)))
     val result = Value.reduce (ctx, aggregatePgm)
-    (* create a list of all outputs *)
-    val outputs =
-      let fun go os =
-        case Value.pop ctx of
-             NONE => os
-           | SOME v => go (v :: os)
-      in go [] end
-    (* write all outputs *)
-    val () = app outputFn outputs
+    val () =
+      if magic then () else let
+        (* create a list of all outputs *)
+        fun go os =
+          case Value.pop ctx of
+               NONE => os
+             | SOME v => go (v :: os)
+        val outputs = go []
+      in
+        (* write the return value *)
+        app outputFn outputs;
+        (* write the outputs *)
+        returnFn result
+      end
   in
     ()
   end
@@ -339,7 +366,8 @@ fun main (name, argv) =
     iFormat = ref FDefault,
     oFormat = ref FDefault,
     rFormat = ref FDefault,
-    activeFormatParam = ref NONE
+    activeFormatParam = ref NONE,
+    magicIo = ref false
   } in
     app (update config) argv;
     resolveDefaults config;
