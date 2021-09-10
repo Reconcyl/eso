@@ -328,9 +328,15 @@ structure Main : MAIN = struct
       val outputFn = mkWriter (!(#oFormat config))
       val returnFn = mkReturner (!(#rFormat config))
       val magic = !(#magicIo config)
+
+      (* push additional stack values *)
+      fun pushArgInputs () =
+        app (fn i => Value.push (ctx, Value.fromInt i)) (rev (!(#argInputs config)))
+
       val () =
         if magic then
-          (Value.push (ctx, Value.magicInput inputFn);
+          (pushArgInputs ();
+           Value.push (ctx, Value.magicInput inputFn);
            Value.push (ctx, Value.magicOutput outputFn))
         else
           (* read all inputs and push them to the stack *)
@@ -338,9 +344,10 @@ structure Main : MAIN = struct
             case inputFn () of
                  NONE => ()
                | SOME i => (Value.push (ctx, Value.fromInt i); go ())
-          in go () end
-      (* push additional stack values *)
-      val () = app (fn i => Value.push (ctx, Value.fromInt i)) (rev (!(#argInputs config)))
+          in
+            go ();
+            pushArgInputs ()
+          end
       (* run the program *)
       val aggregatePgm = vector (map (fn pgm => Expr.App pgm) (!(#pgms config)))
       val result = Value.reduce (ctx, aggregatePgm)
