@@ -12,4 +12,6 @@ main: build_mlton.mlb *.sml
 
 .PHONY: clean
 clean:
-	rm -f main
+	rm -f main build_mlton.du build_mlton.ud
+	rm -f main_smlnj.*
+	rm -rf .cm
