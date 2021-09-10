@@ -26,4 +26,5 @@ Regardless, I hope you find them interesting.
 | `ruscarpone`     | Mascarpone interpreter.
 | `rust_dreaderef` | Attempt at an efficient Dreaderef interpreter.
 | `smetana_inf`    | Fragments of a SMETANA to Infinity! interpreter
+| `snowmelt`       | Better Flurry interpreter in Standard ML.
 | `wsbf`           | BF interpreter in Whitespace.
