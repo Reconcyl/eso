@@ -344,22 +344,20 @@ structure Main : MAIN = struct
       (* run the program *)
       val aggregatePgm = vector (map (fn pgm => Expr.App pgm) (!(#pgms config)))
       val result = Value.reduce (ctx, aggregatePgm)
-      val () =
-        if magic then () else let
-          (* create a list of all outputs *)
-          fun go os =
-            case Value.pop ctx of
-                 NONE => os
-               | SOME v => go (v :: os)
-          val outputs = go []
-        in
-          (* write the return value *)
-          app outputFn outputs;
-          (* write the outputs *)
-          returnFn result
-        end
     in
-      ()
+      if magic then () else let
+        (* create a list of all outputs *)
+        fun go os =
+          case Value.pop ctx of
+               NONE => os
+             | SOME v => go (v :: os)
+        val outputs = go []
+      in
+        (* write the return value *)
+        app outputFn outputs;
+        (* write the outputs *)
+        returnFn result
+      end
     end
 
   fun main (name, argv) =
