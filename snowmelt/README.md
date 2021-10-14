@@ -26,9 +26,9 @@ Options:
 
 Formats:
     i   Church numeral displayed as decimal integer
-    b   Church numeral displayed as raw byte         (i/o only)
-    u   Church numeral displayed as UTF-8 codepoint  (i/o only)
-    d   Debug representation                         (o/r only)
+    b   Church numeral displayed as raw byte         (I/O only)
+    u   Church numeral displayed as UTF-8 codepoint  (I/O only)
+    d   Debug representation                         (O/R only)
     n   Ignored
 ```
 
