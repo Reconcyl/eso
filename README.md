@@ -13,6 +13,7 @@ Regardless, I hope you find them interesting.
 | `check`          | Language where programs switch between executing in 2d and 1d.
 | `digfill`        | DigFill interpreter and mediocre graphical debugger.
 | `dreaderef`      | Simple VM with an instruction set that encourages self-modification.
+| `faux`           | FALSE→x86 compiler written in FALSE.
 | `flobnar`        | Flobnar interpreter.
 | `flurry`         | Functional version of Brain-Flak.
 | `foam`           | High-level confusing Forth.
