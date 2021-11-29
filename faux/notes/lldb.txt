@@ -1,0 +1,30 @@
+# Useful snippets for debugging generated programs using LLDB:
+
+# Good settings for disasm
+settings set stop-disassembly-count 20
+settings set target.x86-disassembly-flavor intel
+
+# Input file
+settings set target.input-path foo.f
+
+# Start the exe passed to lldb as a cmd line argument
+process launch --stop-at-entry
+
+# Set a breakpoint at a particular function
+b faux`getchar
+` # Set a breakpoint at the current instruction:
+b -a `$rip`
+
+# Get the height of the stack:
+print (long*)&output_buf - (long*)$rsp
+
+# Print the contents of the stack:
+# -s8:  items are 8 bytes
+# -fd:  format in decimal (x for hex)
+# -l4:  print 4 per line
+memory read -s8 -fd -l4 -c `(long*)&output_buf - (long*)$rsp` $rsp
+# Print the contents of the input buffer:
+# -fY: xxd-like byte+ASCII dump
+memory read -fY -l32 $rsi -c `$rcx`
+# To read variables
+memory read -s8 -fx -l4 -c 26 &vars
