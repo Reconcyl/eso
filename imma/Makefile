@@ -5,7 +5,7 @@ exec: exec.s
 	zig cc -Wno-unused-command-line-argument $< -o $@
 
 ppx: ppx.zig
-	zig build-exe -O ReleaseSafe --single-threaded $<
+	zig build-exe -O ReleaseSafe -fsingle-threaded $<
 
 .PHONY: clean
 clean:

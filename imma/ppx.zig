@@ -6,7 +6,7 @@ const ascii = std.ascii;
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    const alloc = &gpa.allocator;
+    const alloc = gpa.allocator();
 
     var args = std.process.args();
     defer args.deinit();
@@ -60,7 +60,7 @@ var line_no: u32 = 0;
 var parse_err: []const u8 = undefined;
 var parse_err_is_owned: bool = false;
 
-fn parse(alloc: *Allocator, code: []u8) !void {
+fn parse(alloc: Allocator, code: []u8) !void {
     label_dict = try LabelDict.init(alloc);
     defer label_dict.deinit();
     std.mem.set(u16, &image, 0);
@@ -112,7 +112,6 @@ const ParseState = struct {
 
     fn update(self: *Self, c: u8, c_ptr: *const u8) !Res {
         switch (self.mode) {
-
             .none => if (ascii.isSpace(c) or c == ',') {
                 return .advance;
             } else if (c == ';') {
@@ -220,8 +219,7 @@ const ParseState = struct {
                 }
                 return .advance;
             } else {
-                if (self.cur_label.len == 0) try emitRelative(self.cur_num)
-                else try emit(try label_dict.refer(self.cur_label, self.cur_num));
+                if (self.cur_label.len == 0) try emitRelative(self.cur_num) else try emit(try label_dict.refer(self.cur_label, self.cur_num));
                 self.mode = .none;
                 return .none;
             },
@@ -245,15 +243,13 @@ const ParseState = struct {
                     else => {
                         const err = "invalid escape sequence";
                         const note = " (the escape sequence for quotes is \\')";
-                        if (c == '"') parse_err = err ++ note
-                        else parse_err = err;
+                        if (c == '"') parse_err = err ++ note else parse_err = err;
                         return error.NoParse;
                     },
                 }
                 self.mode = .str;
                 return .advance;
             },
-
         }
     }
 
@@ -298,7 +294,7 @@ const LabelDict = struct {
 
     entries: Entries,
 
-    fn init(alloc: *Allocator) !LabelDict {
+    fn init(alloc: Allocator) !LabelDict {
         var entries = Entries.init(alloc);
         // insert opcode mnemonics as "labels" to their values
         const opcodes = [_]([]const u8){
