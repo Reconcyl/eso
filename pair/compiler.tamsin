@@ -1,0 +1,268 @@
+lexer {
+  token = ({whitespace | comment} & tok) using $:byte.
+
+  tok = "(" | ")" | "[" | "]" | "=" | "#" | "|" | ";" | "," | “<-” | newline | char | string | ident.
+  newline = "\n" & " "/'\n'.
+  char = "'" & (escape_seq | any) -> C & "'" & '\'' + C.
+  escape_seq = "\x5c" & ("'" | "n" & '\n' | "r" & '\r').
+  string = "\"" & (!"\"" & any)/'"' -> S & "\"" & S.
+  ident = ($:alnum | "_") -> L & ($:alnum | "_" | ("'" & return '\'\'') | ("*" & return '\'_'))/L.
+
+  whitespace = " " | "\t" | "\r".
+  comment = "-" & "-" & {!"\n" & any} & ("\n" | eof).
+}
+
+parser {
+  parse = (definition/nil/list -> T & eof & T) using lexer:token.
+
+  definition = {newline}
+             & word -> F
+             & word/nil/list -> XS
+             & $:reverse(XS, nil) -> XS
+             & "="
+             & expr0 -> A
+             & (newline | ";" | eof)
+             & 'define'(F, XS, A).
+
+  expr0 = do_notation
+        | ("return" & expr0 -> X & 'call'(var(pure), X))
+        | expr1 -> F & ["|" & expr0 -> X & F <- call(F, X)] & F.
+  expr1 = expr2 -> F & {expr2 -> X & F <- call(F, X)} & F.
+  expr2 = "#" | char | string | number | var | parenthesized | list.
+
+  parenthesized = "("
+                & T <- nil
+                & [        expr0 -> S & T <- snoc(T, S)
+                  & {"," & expr0 -> S & T <- snoc(T, S)}
+                  & [","] # trailing comma
+                  ]
+                & ")"
+                & mktuple(T).
+
+  list = "["
+       & XS <- nil
+       & [        expr0 -> X & XS <- snoc(XS, X)
+         & {"," & expr0 -> X & XS <- snoc(XS, X)}
+         & [","] # trailing comma
+         ]
+       & "]"
+       & mktuple(snoc(XS, '#')).
+
+  mktuple(nil) = '#'.
+  mktuple(snoc(nil, X)) = X.
+  mktuple(snoc(snoc(XS, A), B)) = mktuple(snoc(XS, tup(A, B))).
+
+  do_notation = "do"
+              & newline -> I
+              & do_notation_lines(I).
+  do_notation_lines(Indent)
+    = word -> X
+    & ("=" | "<-") -> Op
+    & expr0 -> E
+    & $:expect(Indent)
+    & do_notation_lines(Indent) -> Rest
+    & mkdobinder(X, Op, E, Rest)
+    | expr0 -> Fst
+    & ( $:expect(Indent)
+      & do_notation_lines(Indent) -> Rest
+      & 'do_seq'(Fst, Rest)
+      | Fst).
+
+  mkdobinder(X, '=', E, R) = 'do_let'(X, E, R).
+  mkdobinder(X, '<-', E, R) = 'do_bind'(X, E, R).
+
+  newline = $:startswith('\n').
+  char = $:startswith('\'') -> C & ((any & any -> C) using $:byte) @ C & 'char'(C).
+  string = $:startswith('"') -> S & ((any & any/'' -> S) using $:byte) @ S & 'string'(S).
+  number = any -> T & ({digit} & eof) @ T & 'num'(T).
+  digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9".
+  var = word -> X & 'var'(X).
+  word = $:alnum.
+}
+
+sema {
+  make_stringtable(AST)
+    = go(AST, []) -> result(AST, Tab)
+    & $:reverse(AST, nil) -> AST
+    & $:reverse(Tab, nil) -> Tab
+    & 'result'(AST, Tab).
+
+  go(string(S), Tab)
+    = $:gensym('string') -> P
+    & 'result'(stringref(P), [string(P, S) | Tab]).
+
+  go(list(A, B), Tab)
+    = go(A, Tab) -> result(A, Tab)
+    & go(B, Tab) -> result(B, Tab)
+    & 'result'(list(A, B), Tab).
+  go(define(F, Xs, A), Tab)
+    = go(A, Tab) -> result(A, Tab)
+    & 'result'(define(F, Xs, A), Tab).
+
+  go(tup(A, B), Tab)
+    = go(A, Tab) -> result(A, Tab)
+    & go(B, Tab) -> result(B, Tab)
+    & 'result'(tup(A, B), Tab).
+  go(call(A, B), Tab)
+    = go(A, Tab) -> result(A, Tab)
+    & go(B, Tab) -> result(B, Tab)
+    & 'result'(call(A, B), Tab).
+
+  go(do_let(X, E, R), Tab)
+    = go(E, Tab) -> result(E, Tab)
+    & go(R, Tab) -> result(R, Tab)
+    & 'result'(do_let(X, E, R), Tab).
+  go(do_bind(X, E, R), Tab)
+    = go(E, Tab) -> result(E, Tab)
+    & go(R, Tab) -> result(R, Tab)
+    & 'result'(do_bind(X, E, R), Tab).
+  go(do_seq(A, B), Tab)
+    = go(A, Tab) -> result(A, Tab)
+    & go(B, Tab) -> result(B, Tab)
+    & 'result'(do_seq(A, B), Tab).
+
+  # TODO: collapse these into a catchall term
+  # go(X, Tab) = 'result'(X, Tab).
+  go('#', Tab) = 'result'('#', Tab).
+  go(num(N), Tab) = 'result'(num(N), Tab).
+  go(char(C), Tab) = 'result'(char(C), Tab).
+  go(nil, Tab) = 'result'(nil, Tab).
+  go(var(V), Tab) = 'result'(var(V), Tab).
+}
+
+codegen {
+  codegen(AST, Strtab)
+    = prelude & strtab(Strtab) & ast(AST) & epilogue.
+
+  prelude = print
+
+'module String = struct include String let fold_right f str init = let rec go i = if i < String.length str then f (String.get str i) (go (i + 1)) else init in go 0 end
+
+let repeat f x n =
+  let rec go x n = if n > 0 then go (f x) (n - 1) else x in go x n
+
+type value =
+  | N
+  | I of int
+  | P of value * value
+  | F of (value -> value)
+
+let call_nil = function
+  | N        | I 0 -> F (fun a -> F (fun _ -> F (fun _ -> a)))
+  | P (_, _) | I _ -> F (fun _ -> F (fun a -> F (fun _ -> a)))
+  | F _            -> F (fun _ -> F (fun _ -> F (fun a -> a)))
+
+let rec call f x =
+  match f with
+  | N        -> call_nil x
+  | I n      -> repeat call_nil x n
+  | P (a, b) -> call (call x a) b
+  | F f      -> f x
+
+let v_of_string s = String.fold_right (fun c v -> P (I (Char.code c), v)) s N
+
+let int_of_v =
+  let rec go n =
+    function
+    | N        -> n
+    | I m      -> n + m
+    | P (N, x) -> go (n + 1) x
+    | _        -> 0
+  in go 0
+
+let string_of_v v =
+  let buf = Buffer.create 0 in
+  let rec go =
+    function
+    | P (h, t) ->
+      Buffer.add_char buf (Char.chr (int_of_v h));
+      go t;
+    | _ -> ()
+  in go v; Buffer.contents buf
+'.
+
+  strtab(nil) = ''.
+  strtab(list(S, SS)) = str(S) & strtab(SS).
+  str(string(Name, Chars))
+    = $:emit('let ' + Name + ' = make_string "')
+    & $:emit(Chars)
+    & $:emit('"\n').
+
+  ast(nil) = ''.
+  ast(list(D, DS)) = definition(D) & ast(DS).
+
+  definition(define(F, XS, E))
+    = $:emit('let ')
+    & ident(F)
+    & $:emit(' = ')
+    & defbody(XS, E)
+    & $:emit('\n').
+
+  defbody(nil, E) = expr(E).
+  defbody(list(X, XS), E)
+    = $:emit('(F (fun ')
+    & ident(X)
+    & $:emit(' -> ')
+    & defbody(XS, E)
+    & $:emit('))').
+
+  expr(call(F, X))
+    = $:emit('(call ')
+    & expr(F)
+    & $:emit(' ')
+    & expr(X)
+    & $:emit(')').
+
+  expr(tup(A, B))
+    = $:emit('(P ')
+    & expr(A)
+    & $:emit(' ')
+    & expr(B)
+    & $:emit(')').
+
+  expr(do_let(X, E, R))
+    = $:emit('(let ')
+    & ident(X)
+    & $:emit(' = ')
+    & expr(E)
+    & $:emit(' in ')
+    & expr(R)
+    & $:emit(')').
+
+  expr(do_bind(X, E, R))
+    = $:emit('(call _bind ')
+    & expr(E)
+    & $:emit(' (F (fun ')
+    & ident(X)
+    & $:emit(' -> ')
+    & expr(R)
+    & $:emit(')))').
+
+  expr(do_seq(A, B))
+    = $:emit('(call _seq ')
+    & expr(A)
+    & $:emit(' ')
+    & expr(B)
+    & $:emit(')').
+
+  expr('#') = $:emit('N').
+  expr(num(N)) = $:emit('(I ' + N + ')').
+  expr(char('\r')) = $:emit('(I 13)').
+  expr(char('\n')) = $:emit('(I 10)').
+  expr(char('\'')) = $:emit('(I 39)').
+  expr(char(C)) = $:emit('(I (Char.code \'' + C + '\'))').
+  expr(stringref(ID)) = $:emit(ID).
+  expr(var(V)) = ident(V).
+  expr(E) = $:emit(E) & ''.
+
+  ident(X) = $:emit('_') & $:emit(X).
+
+  epilogue = print '\nlet () = input_line stdin |> v_of_string |> call _main |> string_of_v |> print_string'
+           & ''.
+
+}
+
+main = parser:parse -> AST
+     & sema:make_stringtable(AST) -> result(AST, Tab)
+     & codegen:codegen(AST, Tab).
+# main = ident -> D & eol & eof & return D. #prelude & ident -> P & eof & return '(* ' + P + ' *)'.
