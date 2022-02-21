@@ -22,6 +22,7 @@ Regardless, I hope you find them interesting.
 | `metafractran`   | Filesystem-based notation for Fractran programs.
 | `momema`         | Language which takes Dreaderef and makes it sane and boring.
 | `number_factory` | Number Factory interpreter and compiler from BF.
+| `pair`           | Pair→OCaml compiler in Tamsin.
 | `rjam`           | Nth attempt at an efficient CJam implementation/variant.
 | `rsnusp`         | Attempt at an efficient SNUSP interpreter.
 | `ruscarpone`     | Mascarpone interpreter.
