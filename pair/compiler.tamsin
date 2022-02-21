@@ -259,10 +259,8 @@ let string_of_v v =
 
   epilogue = print '\nlet () = input_line stdin |> v_of_string |> call _main |> string_of_v |> print_string'
            & ''.
-
 }
 
 main = parser:parse -> AST
      & sema:make_stringtable(AST) -> result(AST, Tab)
      & codegen:codegen(AST, Tab).
-# main = ident -> D & eol & eof & return D. #prelude & ident -> P & eof & return '(* ' + P + ' *)'.
