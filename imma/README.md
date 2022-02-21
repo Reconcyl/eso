@@ -69,7 +69,7 @@ All other opcodes are equivalent to `nop`.
 
 ### How do I access more than 65K cells?
 
-You can't. Be grateful, it's more than brainf\*ck gives you.
+You can't. Be grateful, it's more than brainfuck gives you.
 
 ### I really want to though
 
@@ -87,7 +87,7 @@ The native representation of an Imma program is a 131,072-byte array, interprete
 
 When such a representation is stored in a file, it should use the extension `.immi` (short for "Imma image", and a reference to the fact that preprocessed C code uses the extension `.i`).
 
-There is also a preprocessor which aims to provide a more convenient syntax. Code written with the preprocessor should be storied with the extension `.imma`.
+There is also a preprocessor which aims to provide a more convenient syntax. Code written with the preprocessor should be stored with the extension `.imma`.
 
 ```
 ; comments are prefixed by semicolons
