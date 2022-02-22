@@ -27,6 +27,7 @@ Regardless, I hope you find them interesting.
 | `rsnusp`         | Attempt at an efficient SNUSP interpreter.
 | `ruscarpone`     | Mascarpone interpreter.
 | `rust_dreaderef` | Attempt at an efficient Dreaderef interpreter.
+| `slashes`        | A Python interpreter for /// written in June 2016.
 | `smetana_inf`    | Fragments of a SMETANA to Infinity! interpreter
 | `snowmelt`       | Better Flurry interpreter in Standard ML.
 | `wsbf`           | BF interpreter in Whitespace.
