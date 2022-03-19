@@ -30,4 +30,5 @@ Regardless, I hope you find them interesting.
 | `slashes`        | A Python interpreter for /// written in June 2016.
 | `smetana_inf`    | Fragments of a SMETANA to Infinity! interpreter
 | `snowmelt`       | Better Flurry interpreter in Standard ML.
+| `wdrpc`          | Programs for the [WDR paper computer](https://en.wikipedia.org/wiki/WDR_paper_computer).
 | `wsbf`           | BF interpreter in Whitespace.

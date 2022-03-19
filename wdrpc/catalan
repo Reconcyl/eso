@@ -1,0 +1,87 @@
+; Compute Catalan numbers (wrong for small inputs).
+; Expects A to be initialized to the index and the rest of the registers to be zeroed.
+; Can be run at: https://marian-aldenhoevel.de/papiercomputer
+inc A
+init:
+    inc B
+    inc C
+    inc C
+    dec A
+    isz A
+    jmp init
+inc D
+inc E
+dec B
+accum:
+    inc B
+    a1:
+        inc A
+        dec D
+        isz D
+        jmp a1
+    a2:
+        inc F
+        inc D
+        dec C
+        isz C
+        jmp a2
+    a3:
+        inc C
+        dec F
+        isz F
+        jmp a3
+        dec A
+        isz A
+        jmp a2
+    a4:
+        inc A
+        dec E
+        isz E
+        jmp a4
+    a5:
+        inc F
+        inc E
+        dec B
+        isz B
+        jmp a5
+    a6:
+        inc B
+        dec F
+        isz F
+        jmp a6
+        dec A
+        isz A
+        jmp a5
+    dec C
+    dec B
+    dec B
+    isz B
+    jmp accum
+b1:
+    dec C
+    isz C
+    jmp b1
+b2:
+    inc C
+    dec D
+    dec E
+    isz E
+    jmp b2
+    inc A
+    isz D
+    jmp b3
+    jmp b4
+b3:
+    inc E
+    dec D
+    dec C
+    isz C
+    jmp b3
+    inc A
+    isz D
+    jmp b2
+b4:
+    dec E
+    isz E
+    jmp b4
+    stp
