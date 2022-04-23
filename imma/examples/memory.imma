@@ -1,0 +1,16 @@
+; Demonstrates the use of the external memory extension.
+; Should output 'xyx' as the contents of section 'b'
+; are saved, executed, overwritten, and restored.
+a
+
+a: sav 123, 456, 5 ; store five cells
+b: chr "x" ; output "x"
+   lit c, 0
+
+c: lit "y", b+1 ; change b to output "y"
+   lit d, b+3 ; change b to goto d
+   lit b, 0
+
+d: lit dmp, a ; change a to load from external memory
+   lit hlt, c ; change c to halt the program
+   lit a, 0
