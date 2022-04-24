@@ -112,14 +112,15 @@ zig build-exe --single-threaded -O ReleaseSafe ppx.zig
 ./ppx input.imma output.immi
 ```
 
-There is also an interpreter written in x64 assembly. If you already have Zig installed, you can compile it using:
+There are also two interpreters, one written in portable C, and the other written in x86 assembly. If you already have Zig installed, you can compile either of them using `zig cc`:
 
 ```
-zig cc -Wno-unused-command-line-argument exec.s -o exec
+zig cc -Wall -Wextra -Wpedantic -O3      exec.c -o exec # C
+zig cc -Wno-unused-command-line-argument exec.s -o exec # assembly
 ./exec input.immi
 ./exec -q input.immi # suppress warnings if the file is smaller than 131K
 ```
 
-This interpreter has only been tested to work on Linux (specifically, Alpine Linux running in WSL and using whatever assembler flags `zig cc` passes to libclang). It also doesn't support the external memory extension.
+The assembly interpreter should be considered the reference, but it's Linux-specific and doesn't support the external memory extension. The C interpreter has a small optimization (caching the IP in a register) which might result in bugs.
 
 There is a Makefile, but all it knows how to do is compile those two programs.
