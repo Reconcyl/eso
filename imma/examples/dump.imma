@@ -1,0 +1,41 @@
+; Read the program's memory and dump it to STDOUT
+ip: init
+? ; dummy so we can use lit ip, <bool> for a conditional jump
+init:
+    lit lit, f+4 ; to have more trailing zeroes
+a:  lit get, b
+    lit addr, b+1
+    lit nop, b+2
+    lit c, next1
+b:  ? ? ?
+    lit next1:?, ip
+c:  lit d, next1
+    lit b, ip
+d:  lit num, b
+    lit e, next1
+    lit b, ip
+e:  lit nop, f
+    lit add, f+1
+    lit 1, f+3
+    lit g, next2
+    lit f+1, ip
+g:  lit lit, f+1
+    lit nonzero+1, f+3
+    lit h, next2
+    lit f+1, ip
+h:  lit not, f+1
+    lit nop, f+3
+    lit i, next2
+    lit f+1, ip
+nonzero:
+    lit ?, addr
+    chr " "
+    lit a, ip
+iszero:
+    chr "\n"
+    hlt
+i:  lit lit, f
+    lit nonzero, f+1
+    lit iszero, next2
+f:  ? ? addr:0, ?
+    ? next2:?, ip
