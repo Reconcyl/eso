@@ -1,0 +1,23 @@
+9
+
+it can't actually do unicode/ascii text
+since it just print's a debug view of the end memory, this is as close as it gets to 'Hello, world!'
+
+
+
+
+
+10
+72
+101
+108
+108
+111
+32
+44
+119
+111
+114
+108
+100
+33
