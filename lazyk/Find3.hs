@@ -9,6 +9,10 @@ import Control.Applicative (liftA2)
 import Control.Monad (guard)
 import Data.Maybe (fromMaybe, isJust)
 
+-- proportion of elements for which `p` holds
+ratio :: (a -> Bool) -> [a] -> Double
+ratio p xs = len (filter p xs) / len xs where len = fromIntegral . length
+
 data Term = S | K | I | V Int | Term :@ Term deriving (Show)
 
 -- return a list whose nth element is f applied to the first n elements in reverse order
@@ -76,6 +80,7 @@ isSucc3 t = fromMaybe False $ do
   t3 <- simplify (t :@ t2)
   return (isI t3)
 
+-- does this term distinguish S, K, and I? (search `terms3`)
 isWeird :: Term -> Bool
 isWeird t = fromMaybe False $ do
   V 0 <- simplify (t :@ S)
@@ -83,5 +88,20 @@ isWeird t = fromMaybe False $ do
   V 2 <- simplify (t :@ I)
   return True
 
+-- determine if a term becomes smaller when simplified
+shrinks :: Term -> Bool
+shrinks t = fromMaybe False $ do
+  t' <- simplify t
+  return $ size t' < size t
+  where
+    size :: Term -> Int
+    size (a :@ b) = size a + size b
+    size _ = 1
+
+-- how many terms in the search set can shrink?
+shrinkingFraction :: IO ()
+shrinkingFraction = print $ ratio shrinks $ concat $ take 9 terms
+
 main :: IO ()
-main = print $ take 4 $ filter isWeird $ concat $ take 6 terms3
+-- main = print $ take 4 $ filter isSucc3 $ concat $ take 6 terms3
+main = let n = 8 in print (n, length $ concat $ take n terms3)
