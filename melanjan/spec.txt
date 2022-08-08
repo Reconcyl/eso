@@ -24,6 +24,7 @@ in left position: results in a byte being written to STDOUT
 
 error conditions:
 - writing outside the bounds of the program.
+- jumping outside the bounds of the program.
 - executing a syntactically invalid command.
 - emitting an invalid byte value (0<=x<255).
 
