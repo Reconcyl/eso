@@ -1,0 +1,32 @@
+the melanjan language
+=====================
+
+melanjan is a simple aubergine derivative.
+memory is an array of bignums.
+reading after the end of the program yields 32;
+reading a negative index yields -1.
+
+there are three variables (a, b, c) holding bignums.
+the main instruction form is
+  ab
+which means
+  a = b - a.
+like aubergine, capital letters can be used for indirection.
+also, the constant 1 is allowed in the right position.
+
+there is an additional variable 'i' for the instruction pointer
+which is allowed in left or right position.
+
+'o' refers to the outside.
+in right position: reads a byte from STDIN (-1 on EOF).
+in left position: results in a byte being written to STDOUT
+  (note that no subtraction is performed in this case.)
+
+error conditions:
+- writing outside the bounds of the program.
+- executing a syntactically invalid command.
+- emitting an invalid byte value (0<=x<255).
+
+design note:
+viewing melanjan as a tarpit, the goal should be to emulate
+a tape- or queue-based language using only O(n^2) overhead.

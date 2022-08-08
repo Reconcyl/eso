@@ -20,6 +20,7 @@ Regardless, I hope you find them interesting.
 | `full_stack`     | Reflective stack machine.
 | `imma`           | Simpler VM with an instruction set that further encourages self-modification.
 | `lazyk`          | Some tools for writing Lazy K programs, and a solution to a halting problem challenge.
+| `melanjan`       | Faster Aubergine derivative.
 | `metafractran`   | Filesystem-based notation for Fractran programs.
 | `momema`         | Language which takes Dreaderef and makes it sane and boring.
 | `number_factory` | Number Factory interpreter and compiler from BF.
