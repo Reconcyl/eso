@@ -142,9 +142,9 @@
   (define fullterm-encoded (encode (laze fullterm)))
   (laze `(S S K ,fullterm-encoded I)))
 
-(lazy-def 'main
-  (refix
-    '(lambda (self input)
-       (parse input (stringify self) (omega omega) 0))))
+(lazy-def 'main-of-main
+  '(lambda (self input)
+     (parse input (stringify self) (omega omega) 0)))
 
+(lazy-def 'main (refix 'main-of-main))
 (dump 'main)

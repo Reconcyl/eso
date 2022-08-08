@@ -80,6 +80,17 @@ isSucc3 t = fromMaybe False $ do
   t3 <- simplify (t :@ t2)
   return (isI t3)
 
+-- do the iterates of this term at I have period 4?
+isSucc4 :: Term -> Bool
+isSucc4 t = fromMaybe False $ do
+  t <- simplify t
+  t1 <- simplify (t :@ I)
+  t2 <- simplify (t :@ t1)
+  guard $ not (isI t2)
+  t3 <- simplify (t :@ t2)
+  t4 <- simplify (t :@ t3)
+  return (isI t4)
+
 -- does this term distinguish S, K, and I? (search `terms3`)
 isWeird :: Term -> Bool
 isWeird t = fromMaybe False $ do
@@ -103,5 +114,5 @@ shrinkingFraction :: IO ()
 shrinkingFraction = print $ ratio shrinks $ concat $ take 9 terms
 
 main :: IO ()
--- main = print $ take 4 $ filter isSucc3 $ concat $ take 6 terms3
-main = let n = 8 in print (n, length $ concat $ take n terms3)
+main = print $ take 4 $ filter isSucc4 $ concat $ take 7 terms
+-- main = let n = 8 in print (n, length $ concat $ take n terms3)
