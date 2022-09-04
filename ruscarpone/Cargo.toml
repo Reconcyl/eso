@@ -1,6 +1,6 @@
 [package]
 name = "ruscarpone"
 version = "0.1.0"
-authors = ["ScratchMan544 <>"]
+authors = ["Reconcyl <22424430+Reconcyl@users.noreply.github.com>"]
 
 [dependencies]
