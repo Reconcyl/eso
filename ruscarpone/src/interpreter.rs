@@ -9,19 +9,19 @@ type Symbol = char;
 #[derive(Clone)]
 enum Object {
     Symbol(Symbol),
-    Operation(Operation<Rc<Interpreter>>),
+    Operation(Operation),
     Interpreter(Rc<Interpreter>),
 }
 
 #[derive(Clone)]
 struct Interpreter {
     parent: Option<Rc<Self>>,
-    dict: HashMap<Symbol, Operation<Rc<Self>>>,
+    dict: HashMap<Symbol, Operation>,
     // In the case that the character dictionary of an interpreter does not contain a definition
     // for a symbol, we also try a fallback function. This is so that interpreters that have a
     // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
     // don't have to fill in every character.
-    fallback: Rc<dyn Fn(Symbol) -> Option<Operation<Rc<Self>>> + 'static>,
+    fallback: Rc<dyn Fn(Symbol) -> Option<Operation> + 'static>,
 }
 
 pub struct State<R, W> {
@@ -33,11 +33,11 @@ pub struct State<R, W> {
 }
 
 #[derive(Clone)]
-enum Operation<InterpreterPtr> {
+enum Operation {
     Builtin(BuiltinOperation),
-    Quotesym(Box<(Symbol, InterpreterPtr)>),
-    Deepquote(Box<(Symbol, InterpreterPtr)>),
-    Custom(Rc<CustomOperation<InterpreterPtr>>),
+    Quotesym(Box<(Symbol, Rc<Interpreter>)>),
+    Deepquote(Box<(Symbol, Rc<Interpreter>)>),
+    Custom(Rc<CustomOperation>),
 }
 
 #[derive(Clone, Copy)]
@@ -63,8 +63,8 @@ enum BuiltinOperation {
     Swap,
 }
 
-struct CustomOperation<InterpreterPtr> {
-    context: InterpreterPtr,
+struct CustomOperation {
+    context: Rc<Interpreter>,
     definition: String,
 }
 
@@ -88,14 +88,14 @@ macro_rules! gen_object_downcast_impl {
 }
 
 gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
-gen_object_downcast_impl!(Operation<Rc<Interpreter>>, Object::Operation, "operation");
+gen_object_downcast_impl!(Operation, Object::Operation, "operation");
 gen_object_downcast_impl!(Rc<Interpreter>, Object::Interpreter, "interpreter");
 
 impl Object {
     fn name(&self) -> &'static str {
         match *self {
-            Object::Symbol(_) => <Symbol as ObjectType>::name(),
-            Object::Operation(_) => <Operation<Rc<Interpreter>>>::name(),
+            Object::Symbol(_) => Symbol::name(),
+            Object::Operation(_) => Operation::name(),
             Object::Interpreter(_) => <Rc<Interpreter>>::name(),
         }
     }
@@ -109,7 +109,7 @@ impl Interpreter {
             fallback: Rc::new(|_| None),
         }
     }
-    fn uniform(oper: Operation<Rc<Self>>) -> Self {
+    fn uniform(oper: Operation) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
@@ -165,13 +165,12 @@ impl Interpreter {
             }
         })
     }
-    fn get_action(&self, s: Symbol) -> Result<Operation<Rc<Self>>, String> {
+    fn get_action(&self, s: Symbol) -> Result<Operation, String> {
         self.dict.get(&s).cloned()
             .or_else(|| (self.fallback)(s))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
-    fn set_action(original: Rc<Self>,
-                  s: Symbol, oper: Operation<Rc<Self>>) -> Rc<Self> {
+    fn set_action(original: Rc<Self>, s: Symbol, oper: Operation) -> Rc<Self> {
         let mut new_interpreter = match Rc::try_unwrap(original) {
             Ok(i) => i,
             Err(original) => (*original).clone(),
@@ -235,7 +234,7 @@ impl<R: Read, W: Write> State<R, W> {
         }
         self.stack.push(Object::Symbol(']'));
     }
-    fn run_operation(&mut self, o: &Operation<Rc<Interpreter>>) -> Result<(), String> {
+    fn run_operation(&mut self, o: &Operation) -> Result<(), String> {
         match o {
             Operation::Builtin(o) => match o {
                 BuiltinOperation::Nop => {}
@@ -384,7 +383,7 @@ impl<R: Read, W: Write> State<R, W> {
     }
 }
 
-fn initial_dict() -> HashMap<Symbol, Operation<Rc<Interpreter>>> {
+fn initial_dict() -> HashMap<Symbol, Operation> {
     [
         ('v',  BuiltinOperation::Reify),
         ('^',  BuiltinOperation::Deify),
