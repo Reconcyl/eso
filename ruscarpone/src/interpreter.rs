@@ -66,6 +66,7 @@ enum Operation<InterpreterPtr> {
 #[derive(Clone, Copy)]
 enum BuiltinOperation {
     Reify,
+    Deify,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -279,11 +280,14 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 BuiltinOperation::Reify => {
                     let current = Rc::clone(&self.current_interpreter);
                     self.stack.push(Object::Interpreter(current));
-                    Ok(())
+                }
+                BuiltinOperation::Deify => {
+                    self.current_interpreter = Rc::clone(&self.pop_as()?);
                 }
             },
             Operation::Custom(_) => todo!(),
         }
+        Ok(())
     }
     pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
         self.current_interpreter.get_action(s)?(self)
@@ -309,10 +313,7 @@ mod initial_dict {
     {
         let mut map = HashMap::new();
         map.insert('v', operation(Operation::Builtin(BuiltinOperation::Reify)));
-        map.insert('^', action(|state| {
-            state.current_interpreter = Rc::clone(&state.pop_as()?);
-            Ok(())
-        }));
+        map.insert('^', operation(Operation::Builtin(BuiltinOperation::Deify)));
         map.insert('>', action(|state| {
             let symbol = state.pop_as()?;
             let interpreter: Rc<Interpreter<_, _>> = state.pop_as()?;
