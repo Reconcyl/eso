@@ -322,7 +322,7 @@ mod initial_dict {
                     &mut state.current_interpreter,
                     Rc::clone(&interpreter));
                 state.run(string.clone())?;
-                mem::replace(&mut state.current_interpreter, old_interpreter);
+                state.current_interpreter = old_interpreter;
                 Ok(())
             })));
             Ok(())
