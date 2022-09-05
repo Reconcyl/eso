@@ -68,6 +68,7 @@ enum BuiltinOperation {
     Reify,
     Deify,
     Extract,
+    Install,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -291,6 +292,17 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     let action = interpreter.get_action(symbol)?;
                     self.stack.push(Object::Action(action));
                 }
+                BuiltinOperation::Install => {
+                    let symbol = self.pop_as()?;
+                    let operation = self.pop_as()?;
+                    let interpreter = self.pop_as()?;
+                    let new_interpreter = Interpreter::set_action(
+                        interpreter,
+                        symbol,
+                        operation
+                    );
+                    self.stack.push(Object::Interpreter(new_interpreter));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -322,18 +334,7 @@ mod initial_dict {
         map.insert('v', operation(Operation::Builtin(BuiltinOperation::Reify)));
         map.insert('^', operation(Operation::Builtin(BuiltinOperation::Deify)));
         map.insert('>', operation(Operation::Builtin(BuiltinOperation::Extract)));
-        map.insert('<', action(|state| {
-            let symbol = state.pop_as()?;
-            let operation = state.pop_as()?;
-            let interpreter = state.pop_as()?;
-            let new_interpreter = Interpreter::set_action(
-                interpreter,
-                symbol,
-                operation
-            );
-            state.stack.push(Object::Interpreter(new_interpreter));
-            Ok(())
-        }));
+        map.insert('<', operation(Operation::Builtin(BuiltinOperation::Install)));
         map.insert('{', action(|state| {
             let old_interpreter: Rc<Interpreter<_, _>> = state.pop_as()?;
             let parent = old_interpreter.get_parent();
