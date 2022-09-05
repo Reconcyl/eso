@@ -58,6 +58,7 @@ pub struct State<'a, R, W> {
 enum Operation<InterpreterPtr> {
     Builtin(BuiltinOperation),
     Quotesym(Box<(Symbol, InterpreterPtr)>),
+    Deepquote(Box<(Symbol, InterpreterPtr)>),
     Custom(Rc<CustomOperation<InterpreterPtr>>),
 }
 
@@ -179,18 +180,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(action(move |state| {
-                    state.stack.push(Object::Symbol(s));
-                    if s == ']' {
-                        state.nesting -= 1;
-                        if state.nesting == 0 {
-                            state.current_interpreter = Rc::clone(&original);
-                        }
-                    } else if s == '[' {
-                        state.nesting += 1;
-                    }
-                    Ok(())
-                }))
+                Some(operation(Operation::Deepquote(Box::new((s, original)))))
             })
         }
     }
@@ -255,7 +245,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
         T::downcast(&element)
             .ok_or(format!("Tried to pop {}, got {}", T::name(), element.name()))
     }
-    fn pop_string(&mut self) -> Result<Vec<Symbol>, String> {
+    fn pop_string(&mut self) -> Result<String, String> {
         // Expect a ']'.
         match self.pop_as()? {
             ']' => {}
@@ -277,7 +267,8 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
         // This includes the final opening '[', so we remove that.
         characters.pop();
         characters.reverse();
-        Ok(characters)
+        // TODO: encode as utf8 from the start
+        Ok(characters.into_iter().collect())
     }
     fn push_string(&mut self, string: &str) {
         self.stack.push(Object::Symbol('['));
@@ -326,16 +317,10 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(Object::Interpreter(new));
                 }
                 BuiltinOperation::Create => {
-                    let interpreter: Rc<Interpreter<R, W>> = self.pop_as()?;
-                    let string = self.pop_string()?;
-                    self.stack.push(Object::Action(action(move |state| {
-                        let old_interpreter = mem::replace(
-                            &mut state.current_interpreter,
-                            Rc::clone(&interpreter));
-                        state.run(string.clone())?;
-                        state.current_interpreter = old_interpreter;
-                        Ok(())
-                    })));
+                    let context: Rc<Interpreter<R, W>> = self.pop_as()?;
+                    let definition = self.pop_string()?;
+                    let custom = Rc::new(CustomOperation { context, definition });
+                    self.stack.push(Object::Action(operation(Operation::Custom(custom))));
                 }
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
                 // possible.
@@ -397,11 +382,29 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 }
             }
             Operation::Quotesym(b) => {
-                let (c, old_interpreter) = b.deref().clone();
-                self.stack.push(Object::Symbol(c));
+                let (s, old_interpreter) = b.deref().clone();
+                self.stack.push(Object::Symbol(s));
                 self.current_interpreter = old_interpreter;
             }
-            Operation::Custom(_) => todo!(),
+            Operation::Deepquote(b) => {
+                let &(s, ref old_interpreter) = b.deref();
+                self.stack.push(Object::Symbol(s));
+                if s == ']' {
+                    self.nesting -= 1;
+                    if self.nesting == 0 {
+                        self.current_interpreter = Rc::clone(old_interpreter);
+                    }
+                } else if s == '[' {
+                    self.nesting += 1;
+                }
+            }
+            Operation::Custom(custom) => {
+                let old_interpreter = mem::replace(
+                    &mut self.current_interpreter,
+                    Rc::clone(&custom.context));
+                self.run(custom.definition.chars())?;
+                self.current_interpreter = old_interpreter;
+            }
         }
         Ok(())
     }
