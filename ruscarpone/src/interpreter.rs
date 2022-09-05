@@ -78,15 +78,14 @@ impl<R: Read, W: Write> State<R, W> {
             nesting: 0,
         }
     }
-    fn pop(&mut self) -> Option<Object> {
-        self.stack.pop()
-    }
     fn pop_any(&mut self) -> Result<Object, String> {
-        self.pop()
+        self.stack
+            .pop()
             .ok_or("Tried to pop from empty stack".to_string())
     }
-    fn pop_as<T: ObjectType>(&mut self) -> Result<T, String> {
+    fn pop<T: ObjectType>(&mut self) -> Result<T, String> {
         let element = self
+            .stack
             .pop()
             .ok_or(format!("Tried to pop {} from empty stack", T::name()))?;
         T::downcast(&element).ok_or(format!(
@@ -160,34 +159,34 @@ impl<R: Read, W: Write> State<R, W> {
                     self.stack.push(Object::Interpreter(current));
                 }
                 BuiltinOperation::Deify => {
-                    self.current_interpreter = Rc::clone(&self.pop_as()?);
+                    self.current_interpreter = Rc::clone(&self.pop()?);
                 }
                 BuiltinOperation::Extract => {
-                    let symbol = self.pop_as()?;
-                    let interpreter: Rc<Interpreter> = self.pop_as()?;
+                    let symbol = self.pop()?;
+                    let interpreter: Rc<Interpreter> = self.pop()?;
                     let oper = interpreter.get_action(symbol)?;
                     self.stack.push(Object::Operation(oper));
                 }
                 BuiltinOperation::Install => {
-                    let symbol = self.pop_as()?;
-                    let oper = self.pop_as()?;
-                    let interpreter = self.pop_as()?;
+                    let symbol = self.pop()?;
+                    let oper = self.pop()?;
+                    let interpreter = self.pop()?;
                     let new_interpreter = Interpreter::set_action(interpreter, symbol, oper);
                     self.stack.push(Object::Interpreter(new_interpreter));
                 }
                 BuiltinOperation::GetParent => {
-                    let old_interpreter: Rc<Interpreter> = self.pop_as()?;
+                    let old_interpreter: Rc<Interpreter> = self.pop()?;
                     let parent = old_interpreter.get_parent();
                     self.stack.push(Object::Interpreter(parent));
                 }
                 BuiltinOperation::SetParent => {
-                    let i = self.pop_as()?;
-                    let j = self.pop_as()?;
+                    let i = self.pop()?;
+                    let j = self.pop()?;
                     let new = Interpreter::set_parent(i, j);
                     self.stack.push(Object::Interpreter(new));
                 }
                 BuiltinOperation::Create => {
-                    let context = self.pop_as()?;
+                    let context = self.pop()?;
                     let definition = self.pop_string()?;
                     let custom = Rc::new(CustomOperation {
                         context,
@@ -199,13 +198,13 @@ impl<R: Read, W: Write> State<R, W> {
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
                 // possible.
                 BuiltinOperation::Expand => {
-                    let oper = self.pop_as()?;
+                    let oper = self.pop()?;
                     self.push_string("@");
                     let interpreter = Interpreter::uniform(oper);
                     self.stack.push(Object::Interpreter(Rc::new(interpreter)));
                 }
                 BuiltinOperation::Perform => {
-                    let oper = self.pop_as()?;
+                    let oper = self.pop()?;
                     self.run_operation(&oper)?;
                 }
                 BuiltinOperation::Null => {
@@ -213,7 +212,7 @@ impl<R: Read, W: Write> State<R, W> {
                         .push(Object::Interpreter(Rc::new(Interpreter::null())));
                 }
                 BuiltinOperation::Uniform => {
-                    let action = self.pop_as()?;
+                    let action = self.pop()?;
                     let interpreter = Interpreter::uniform(action);
                     self.stack.push(Object::Interpreter(Rc::new(interpreter)));
                 }
@@ -229,7 +228,7 @@ impl<R: Read, W: Write> State<R, W> {
                         Rc::new(Interpreter::quote(Rc::clone(&self.current_interpreter)));
                 }
                 BuiltinOperation::Output => {
-                    let symbol = self.pop_as()?;
+                    let symbol = self.pop()?;
                     self.write_symbol(symbol)?;
                 }
                 BuiltinOperation::Input => {
