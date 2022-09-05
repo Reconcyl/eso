@@ -81,6 +81,8 @@ enum BuiltinOperation {
     Output,
     Input,
     Dup,
+    Pop,
+    Swap,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -387,6 +389,15 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(e.clone());
                     self.stack.push(e);
                 }
+                BuiltinOperation::Pop => {
+                    self.pop_any().map(|_| ())?;
+                }
+                BuiltinOperation::Swap => {
+                    let a = self.pop_any()?;
+                    let b = self.pop_any()?;
+                    self.stack.push(a);
+                    self.stack.push(b);
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -431,16 +442,8 @@ mod initial_dict {
         map.insert('.', operation(Operation::Builtin(BuiltinOperation::Output)));
         map.insert(',', operation(Operation::Builtin(BuiltinOperation::Input)));
         map.insert(':', operation(Operation::Builtin(BuiltinOperation::Dup)));
-        map.insert('$', action(|state| {
-            state.pop_any().map(|_| ())
-        }));
-        map.insert('/', action(|state| {
-            let a = state.pop_any()?;
-            let b = state.pop_any()?;
-            state.stack.push(a);
-            state.stack.push(b);
-            Ok(())
-        }));
+        map.insert('$', operation(Operation::Builtin(BuiltinOperation::Pop)));
+        map.insert('/', operation(Operation::Builtin(BuiltinOperation::Swap)));
         map
     }
 }
