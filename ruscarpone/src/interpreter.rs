@@ -72,6 +72,7 @@ enum BuiltinOperation {
     GetParent,
     SetParent,
     Create,
+    Expand,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -329,6 +330,14 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                         Ok(())
                     })));
                 }
+                // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
+                // possible.
+                BuiltinOperation::Expand => {
+                    let action = self.pop_as()?;
+                    self.push_string("@");
+                    let interpreter = Interpreter::uniform(action);
+                    self.stack.push(Object::Interpreter(Rc::new(interpreter)));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -364,15 +373,7 @@ mod initial_dict {
         map.insert('{', operation(Operation::Builtin(BuiltinOperation::GetParent)));
         map.insert('}', operation(Operation::Builtin(BuiltinOperation::SetParent)));
         map.insert('*', operation(Operation::Builtin(BuiltinOperation::Create)));
-        // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
-        // possible.
-        map.insert('@', action(|state| {
-            let action = state.pop_as()?;
-            state.push_string("@");
-            let interpreter = Interpreter::uniform(action);
-            state.stack.push(Object::Interpreter(Rc::new(interpreter)));
-            Ok(())
-        }));
+        map.insert('@', operation(Operation::Builtin(BuiltinOperation::Expand)));
         map.insert('!', action(|state| {
             let action: Rc<Action<_, _>> = state.pop_as()?;
             action(state)
