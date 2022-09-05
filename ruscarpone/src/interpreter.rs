@@ -6,47 +6,27 @@ use ::std::mem;
 
 type Symbol = char;
 
-enum Object<'a, R, W> {
+#[derive(Clone)]
+enum Object {
     Symbol(Symbol),
-    Operation(Operation<Rc<Interpreter<'a, R, W>>>),
-    Interpreter(Rc<Interpreter<'a, R, W>>),
+    Operation(Operation<Rc<Interpreter>>),
+    Interpreter(Rc<Interpreter>),
 }
 
-// We can't just use `#[derive(Clone)]` to generate a Clone implementation for us. This is a known
-// limitation and is apparently unsolvable.
-impl<'a, R: 'a, W: 'a> Clone for Object<'a, R, W> {
-    fn clone(&self) -> Self {
-        match self {
-            Object::Symbol(s) => Object::Symbol(*s),
-            Object::Operation(o) => Object::Operation(o.clone()),
-            Object::Interpreter(i) => Object::Interpreter(Rc::clone(i))
-        }
-    }
-}
-
-struct Interpreter<'a, R, W> {
-    parent: Option<Rc<Interpreter<'a, R, W>>>,
+#[derive(Clone)]
+struct Interpreter {
+    parent: Option<Rc<Self>>,
     dict: HashMap<Symbol, Operation<Rc<Self>>>,
     // In the case that the character dictionary of an interpreter does not contain a definition
     // for a symbol, we also try a fallback function. This is so that interpreters that have a
     // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
     // don't have to fill in every character.
-    fallback: Rc<dyn Fn(Symbol) -> Option<Operation<Rc<Self>>> + 'a>,
+    fallback: Rc<dyn Fn(Symbol) -> Option<Operation<Rc<Self>>> + 'static>,
 }
 
-impl<'a, R: 'a, W: 'a> Clone for Interpreter<'a, R, W> {
-    fn clone(&self) -> Self {
-        Interpreter {
-            parent: self.parent.clone(),
-            dict: self.dict.clone(),
-            fallback: Rc::clone(&self.fallback)
-        }
-    }
-}
-
-pub struct State<'a, R, W> {
-    current_interpreter: Rc<Interpreter<'a, R, W>>,
-    stack: Vec<Object<'a, R, W>>,
+pub struct State<R, W> {
+    current_interpreter: Rc<Interpreter>,
+    stack: Vec<Object>,
     input: io::Bytes<R>,
     output: W,
     nesting: u32,
@@ -88,16 +68,16 @@ struct CustomOperation<InterpreterPtr> {
     definition: String,
 }
 
-trait ObjectType<'a, R, W>: Sized {
+trait ObjectType: Sized {
     fn name() -> &'static str;
-    fn downcast(_: &Object<'a, R, W>) -> Option<Self>;
+    fn downcast(_: &Object) -> Option<Self>;
 }
 
 macro_rules! gen_object_downcast_impl {
     ($type:ty, $tag:path, $name:expr) => {
-        impl<'a, R, W> ObjectType<'a, R, W> for $type {
+        impl ObjectType for $type {
             fn name() -> &'static str { $name }
-            fn downcast(obj: &Object<'a, R, W>) -> Option<Self> {
+            fn downcast(obj: &Object) -> Option<Self> {
                 match *obj {
                     $tag(ref a) => Some(a.clone()),
                     _ => None,
@@ -108,20 +88,20 @@ macro_rules! gen_object_downcast_impl {
 }
 
 gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
-gen_object_downcast_impl!(Operation<Rc<Interpreter<'a, R, W>>>, Object::Operation, "operation");
-gen_object_downcast_impl!(Rc<Interpreter<'a, R, W>>, Object::Interpreter, "interpreter");
+gen_object_downcast_impl!(Operation<Rc<Interpreter>>, Object::Operation, "operation");
+gen_object_downcast_impl!(Rc<Interpreter>, Object::Interpreter, "interpreter");
 
-impl<'a, R: Read + 'a, W: Write + 'a> Object<'a, R, W> {
+impl Object {
     fn name(&self) -> &'static str {
         match *self {
-            Object::Symbol(_) => <Symbol as ObjectType<R, W>>::name(),
-            Object::Operation(_) => <Operation<Rc<Interpreter<'a, R, W>>>>::name(),
-            Object::Interpreter(_) => <Rc<Interpreter<R, W>>>::name(),
+            Object::Symbol(_) => <Symbol as ObjectType>::name(),
+            Object::Operation(_) => <Operation<Rc<Interpreter>>>::name(),
+            Object::Interpreter(_) => <Rc<Interpreter>>::name(),
         }
     }
 }
 
-impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
+impl Interpreter {
     fn null() -> Self {
         Self {
             parent: None,
@@ -143,7 +123,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             fallback: Rc::new(|_| Some(Operation::Builtin(BuiltinOperation::Nop))),
         }
     }
-    fn quote(original: Rc<Interpreter<'a, R, W>>) -> Self {
+    fn quote(original: Rc<Self>) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
@@ -153,7 +133,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             })
         }
     }
-    fn deep_quote(original: Rc<Interpreter<'a, R, W>>) -> Self {
+    fn deep_quote(original: Rc<Self>) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
@@ -163,13 +143,12 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             })
         }
     }
-    fn get_parent(&self) -> Rc<Interpreter<'a, R, W>> {
+    fn get_parent(&self) -> Rc<Self> {
         self.parent.as_ref()
             .map(Rc::clone)
             .unwrap_or_else(|| Rc::new(Interpreter::null()))
     }
-    fn set_parent(original: Rc<Interpreter<'a, R, W>>,
-                  parent: Rc<Interpreter<'a, R, W>>) -> Rc<Interpreter<'a, R, W>> {
+    fn set_parent(original: Rc<Self>, parent: Rc<Self>) -> Rc<Self> {
         // Modify the interpreter in-place if possible; otherwise, clone its
         // character dictionary and fallback functions and make a new one.
         Rc::new(match Rc::try_unwrap(original) {
@@ -191,8 +170,8 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             .or_else(|| (self.fallback)(s))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
-    fn set_action(original: Rc<Interpreter<'a, R, W>>,
-                  s: Symbol, oper: Operation<Rc<Self>>) -> Rc<Interpreter<'a, R, W>> {
+    fn set_action(original: Rc<Self>,
+                  s: Symbol, oper: Operation<Rc<Self>>) -> Rc<Self> {
         let mut new_interpreter = match Rc::try_unwrap(original) {
             Ok(i) => i,
             Err(original) => (*original).clone(),
@@ -202,7 +181,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
     }
 }
 
-impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
+impl<R: Read, W: Write> State<R, W> {
     pub fn new(input: R, output: W) -> Self {
         State {
             current_interpreter: Rc::new(Interpreter::initial()),
@@ -212,13 +191,13 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
             nesting: 0,
         }
     }
-    fn pop(&mut self) -> Option<Object<'a, R, W>> {
+    fn pop(&mut self) -> Option<Object> {
         self.stack.pop()
     }
-    fn pop_any(&mut self) -> Result<Object<'a, R, W>, String> {
+    fn pop_any(&mut self) -> Result<Object, String> {
         self.pop().ok_or("Tried to pop from empty stack".to_string())
     }
-    fn pop_as<T: ObjectType<'a, R, W>>(&mut self) -> Result<T, String> {
+    fn pop_as<T: ObjectType>(&mut self) -> Result<T, String> {
         let element = self.pop()
             .ok_or(format!("Tried to pop {} from empty stack", T::name()))?;
         T::downcast(&element)
@@ -256,7 +235,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
         }
         self.stack.push(Object::Symbol(']'));
     }
-    fn run_operation(&mut self, o: &Operation<Rc<Interpreter<'a, R, W>>>) -> Result<(), String> {
+    fn run_operation(&mut self, o: &Operation<Rc<Interpreter>>) -> Result<(), String> {
         match o {
             Operation::Builtin(o) => match o {
                 BuiltinOperation::Nop => {}
@@ -269,7 +248,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 }
                 BuiltinOperation::Extract => {
                     let symbol = self.pop_as()?;
-                    let interpreter: Rc<Interpreter<_, _>> = self.pop_as()?;
+                    let interpreter: Rc<Interpreter> = self.pop_as()?;
                     let oper = interpreter.get_action(symbol)?;
                     self.stack.push(Object::Operation(oper));
                 }
@@ -285,7 +264,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(Object::Interpreter(new_interpreter));
                 }
                 BuiltinOperation::GetParent => {
-                    let old_interpreter: Rc<Interpreter<_, _>> = self.pop_as()?;
+                    let old_interpreter: Rc<Interpreter> = self.pop_as()?;
                     let parent = old_interpreter.get_parent();
                     self.stack.push(Object::Interpreter(parent));
                 }
@@ -296,7 +275,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(Object::Interpreter(new));
                 }
                 BuiltinOperation::Create => {
-                    let context: Rc<Interpreter<R, W>> = self.pop_as()?;
+                    let context = self.pop_as()?;
                     let definition = self.pop_string()?;
                     let custom = Rc::new(CustomOperation { context, definition });
                     self.stack.push(Object::Operation(Operation::Custom(custom)));
@@ -405,7 +384,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     }
 }
 
-fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Operation<Rc<Interpreter<'a, R, W>>>> {
+fn initial_dict() -> HashMap<Symbol, Operation<Rc<Interpreter>>> {
     [
         ('v',  BuiltinOperation::Reify),
         ('^',  BuiltinOperation::Deify),
