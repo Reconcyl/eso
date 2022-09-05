@@ -149,11 +149,11 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             fallback: Rc::new(|_| None),
         }
     }
-    fn uniform(action: Action<'a, R, W>) -> Self {
+    fn uniform(oper: Operation<Rc<Self>>) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: Rc::new(move |_| Some(Rc::clone(&action)))
+            fallback: Rc::new(move |_| Some(operation(oper.clone()))),
         }
     }
     fn initial() -> Self {
@@ -320,14 +320,14 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     let context: Rc<Interpreter<R, W>> = self.pop_as()?;
                     let definition = self.pop_string()?;
                     let custom = Rc::new(CustomOperation { context, definition });
-                    self.stack.push(Object::Action(operation(Operation::Custom(custom))));
+                    self.stack.push(Object::Operation(Operation::Custom(custom)));
                 }
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
                 // possible.
                 BuiltinOperation::Expand => {
-                    let action = self.pop_as()?;
+                    let oper = self.pop_as()?;
                     self.push_string("@");
-                    let interpreter = Interpreter::uniform(action);
+                    let interpreter = Interpreter::uniform(oper);
                     self.stack.push(Object::Interpreter(Rc::new(interpreter)));
                 }
                 BuiltinOperation::Perform => {
