@@ -34,7 +34,6 @@ struct Interpreter {
 // don't have to fill in every character.
 #[derive(Clone)]
 enum InterpreterFallback {
-    None,
     Uniform(Operation),
     Quotesym(Rc<Interpreter>),
     Deepquote(Rc<Interpreter>),
@@ -85,6 +84,8 @@ enum BuiltinOperation {
     Dup,
     Pop,
     Swap,
+
+    Illegal,
 }
 
 struct CustomOperation {
@@ -188,7 +189,7 @@ impl<R: Read, W: Write> State<R, W> {
                 BuiltinOperation::Extract => {
                     let symbol = self.pop()?;
                     let interpreter: Rc<Interpreter> = self.pop()?;
-                    self.push(interpreter.get_action(symbol)?);
+                    self.push(interpreter.get_action(symbol));
                 }
                 BuiltinOperation::Install => {
                     let symbol = self.pop()?;
@@ -210,11 +211,11 @@ impl<R: Read, W: Write> State<R, W> {
                     let (definition, len) = self.pop_string()?;
                     self.push(match len {
                         0 => Operation::Builtin(BuiltinOperation::Nop),
-                        1 => context.get_action(definition.chars().next().unwrap())?,
+                        1 => context.get_action(definition.chars().next().unwrap()),
                         _ => Operation::Custom(Rc::new(CustomOperation {
                             context,
                             definition,
-                        }))
+                        })),
                     })
                 }
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
@@ -266,6 +267,9 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push_any(a);
                     self.push_any(b);
                 }
+                BuiltinOperation::Illegal => {
+                    return Err("Illegal operation performed".to_owned());
+                }
             },
             Operation::Quotesym(s, ref old_interpreter) => {
                 self.push(s);
@@ -292,7 +296,7 @@ impl<R: Read, W: Write> State<R, W> {
         Ok(())
     }
     pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
-        let oper = self.current_interpreter.get_action(s)?;
+        let oper = self.current_interpreter.get_action(s);
         self.run_operation(&oper)
     }
     pub fn run<I: IntoIterator<Item = Symbol>>(&mut self, symbols: I) -> Result<(), String> {
@@ -304,7 +308,9 @@ impl<R: Read, W: Write> State<R, W> {
     pub fn debug_stack_contents(&mut self) {
         let mut s = String::new();
         for obj in &self.stack {
-            if !s.is_empty() { s.push(' '); }
+            if !s.is_empty() {
+                s.push(' ');
+            }
             obj.show(&mut s, &self.initial_interpreter);
         }
         eprintln!("{}", s);
@@ -365,7 +371,7 @@ impl Interpreter {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: InterpreterFallback::None,
+            fallback: InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal)),
         }
     }
     fn uniform(oper: Operation) -> Self {
@@ -417,12 +423,11 @@ impl Interpreter {
             },
         })
     }
-    fn get_action(&self, s: Symbol) -> Result<Operation, String> {
+    fn get_action(&self, s: Symbol) -> Operation {
         self.dict
             .get(&s)
             .cloned()
-            .or_else(|| self.fallback.get_operation(s))
-            .ok_or_else(|| format!("Interpreter has no definition for {}", s))
+            .unwrap_or_else(|| self.fallback.get_operation(s))
     }
     fn set_action(original: Rc<Self>, s: Symbol, oper: Operation) -> Rc<Self> {
         let mut new_interpreter = match Rc::try_unwrap(original) {
@@ -437,7 +442,9 @@ impl Interpreter {
         let mut precursor = None;
         // base interpreter
         match self.fallback {
-            InterpreterFallback::None => out.push('0'),
+            InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal)) => {
+                out.push('0')
+            }
             // TODO: it's a bug to assume that an interpreter is derived from ^
             // just because its fallback is nop.
             InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop)) => {
@@ -470,12 +477,11 @@ impl Interpreter {
 }
 
 impl InterpreterFallback {
-    fn get_operation(&self, s: Symbol) -> Option<Operation> {
+    fn get_operation(&self, s: Symbol) -> Operation {
         match self {
-            Self::None => None,
-            Self::Uniform(oper) => Some(oper.clone()),
-            Self::Quotesym(original) => Some(Operation::Quotesym(s, Rc::clone(original))),
-            Self::Deepquote(original) => Some(Operation::Deepquote(s, Rc::clone(original))),
+            Self::Uniform(oper) => oper.clone(),
+            Self::Quotesym(original) => Operation::Quotesym(s, Rc::clone(original)),
+            Self::Deepquote(original) => Operation::Deepquote(s, Rc::clone(original)),
         }
     }
 }
@@ -530,6 +536,7 @@ impl BuiltinOperation {
             Self::Dup => "v(':)>",
             Self::Pop => "v('$)>",
             Self::Swap => "v('/)>",
+            Self::Illegal => "0('0)>",
         })
     }
 }
