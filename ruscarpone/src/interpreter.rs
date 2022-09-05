@@ -70,7 +70,7 @@ macro_rules! action {
 
 trait ObjectType<'a, R, W>: Sized {
     fn name() -> &'static str;
-    fn downcast(&Object<'a, R, W>) -> Option<Self>;
+    fn downcast(_: &Object<'a, R, W>) -> Option<Self>;
 }
 
 macro_rules! gen_object_downcast_impl {

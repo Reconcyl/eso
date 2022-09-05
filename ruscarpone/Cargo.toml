@@ -2,5 +2,6 @@
 name = "ruscarpone"
 version = "0.1.0"
 authors = ["Reconcyl <22424430+Reconcyl@users.noreply.github.com>"]
+edition = "2021"
 
 [dependencies]

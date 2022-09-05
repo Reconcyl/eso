@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 use std::process::exit;
 
 mod interpreter;
-use interpreter::fmt_to_string;
+use crate::interpreter::fmt_to_string;
 
 fn print_and_flush(s: &str) -> Result<(), String> {
     print!("{}", s);
