@@ -94,11 +94,8 @@ impl<R: Read, W: Write> State<R, W> {
             .stack
             .pop()
             .ok_or_else(|| format!("Tried to pop {} from empty stack", T::name()))?;
-        T::downcast(&element).ok_or_else(|| format!(
-            "Tried to pop {}, got {}",
-            T::name(),
-            element.name()
-        ))
+        T::downcast(&element)
+            .ok_or_else(|| format!("Tried to pop {}, got {}", T::name(), element.name()))
     }
     fn pop_string(&mut self) -> Result<String, String> {
         match self.stack.last() {
@@ -277,7 +274,9 @@ impl<R: Read, W: Write> State<R, W> {
         Ok(())
     }
     fn write_symbol(&mut self, symbol: Symbol) -> Result<(), String> {
-        match self.output.write(&symbol.to_string().as_bytes()) {
+        let buf = &mut [0u8; 4];
+        let buf = symbol.encode_utf8(buf).as_bytes();
+        match self.output.write(buf) {
             Ok(_size) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
