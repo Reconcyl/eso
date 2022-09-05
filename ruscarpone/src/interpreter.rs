@@ -4,6 +4,14 @@ use std::rc::Rc;
 use std::io::{self, Read, Write};
 use std::mem;
 
+pub struct State<R, W> {
+    current_interpreter: Rc<Interpreter>,
+    stack: Vec<Object>,
+    input: io::Bytes<R>,
+    output: W,
+    nesting: u32,
+}
+
 type Symbol = char;
 
 #[derive(Clone)]
@@ -22,14 +30,6 @@ struct Interpreter {
     // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
     // don't have to fill in every character.
     fallback: Rc<dyn Fn(Symbol) -> Option<Operation> + 'static>,
-}
-
-pub struct State<R, W> {
-    current_interpreter: Rc<Interpreter>,
-    stack: Vec<Object>,
-    input: io::Bytes<R>,
-    output: W,
-    nesting: u32,
 }
 
 #[derive(Clone)]
@@ -66,118 +66,6 @@ enum BuiltinOperation {
 struct CustomOperation {
     context: Rc<Interpreter>,
     definition: String,
-}
-
-trait ObjectType: Sized {
-    fn name() -> &'static str;
-    fn downcast(_: &Object) -> Option<Self>;
-}
-
-macro_rules! gen_object_downcast_impl {
-    ($type:ty, $tag:path, $name:expr) => {
-        impl ObjectType for $type {
-            fn name() -> &'static str { $name }
-            fn downcast(obj: &Object) -> Option<Self> {
-                match *obj {
-                    $tag(ref a) => Some(a.clone()),
-                    _ => None,
-                }
-            }
-        }
-    }
-}
-
-gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
-gen_object_downcast_impl!(Operation, Object::Operation, "operation");
-gen_object_downcast_impl!(Rc<Interpreter>, Object::Interpreter, "interpreter");
-
-impl Object {
-    fn name(&self) -> &'static str {
-        match *self {
-            Object::Symbol(_) => Symbol::name(),
-            Object::Operation(_) => Operation::name(),
-            Object::Interpreter(_) => <Rc<Interpreter>>::name(),
-        }
-    }
-}
-
-impl Interpreter {
-    fn null() -> Self {
-        Self {
-            parent: None,
-            dict: HashMap::new(),
-            fallback: Rc::new(|_| None),
-        }
-    }
-    fn uniform(oper: Operation) -> Self {
-        Self {
-            parent: None,
-            dict: HashMap::new(),
-            fallback: Rc::new(move |_| Some(oper.clone())),
-        }
-    }
-    fn initial() -> Self {
-        Self {
-            parent: None,
-            dict: initial_dict(),
-            fallback: Rc::new(|_| Some(Operation::Builtin(BuiltinOperation::Nop))),
-        }
-    }
-    fn quote(original: Rc<Self>) -> Self {
-        Self {
-            parent: None,
-            dict: HashMap::new(),
-            fallback: Rc::new(move |s| {
-                let original = Rc::clone(&original);
-                Some(Operation::Quotesym(Box::new((s, original))))
-            })
-        }
-    }
-    fn deep_quote(original: Rc<Self>) -> Self {
-        Self {
-            parent: None,
-            dict: HashMap::new(),
-            fallback: Rc::new(move |s| {
-                let original = Rc::clone(&original);
-                Some(Operation::Deepquote(Box::new((s, original))))
-            })
-        }
-    }
-    fn get_parent(&self) -> Rc<Self> {
-        self.parent.as_ref()
-            .map(Rc::clone)
-            .unwrap_or_else(|| Rc::new(Interpreter::null()))
-    }
-    fn set_parent(original: Rc<Self>, parent: Rc<Self>) -> Rc<Self> {
-        // Modify the interpreter in-place if possible; otherwise, clone its
-        // character dictionary and fallback functions and make a new one.
-        Rc::new(match Rc::try_unwrap(original) {
-            Ok(mut i) => {
-                i.parent = Some(parent);
-                i
-            }
-            Err(original) => {
-                Interpreter {
-                    parent: Some(parent),
-                    dict: original.dict.clone(),
-                    fallback: Rc::clone(&original.fallback)
-                }
-            }
-        })
-    }
-    fn get_action(&self, s: Symbol) -> Result<Operation, String> {
-        self.dict.get(&s).cloned()
-            .or_else(|| (self.fallback)(s))
-            .ok_or_else(|| format!("Interpreter has no definition for {}", s))
-    }
-    fn set_action(original: Rc<Self>, s: Symbol, oper: Operation) -> Rc<Self> {
-        let mut new_interpreter = match Rc::try_unwrap(original) {
-            Ok(i) => i,
-            Err(original) => (*original).clone(),
-        };
-        new_interpreter.dict.insert(s, oper);
-        Rc::new(new_interpreter)
-    }
 }
 
 impl<R: Read, W: Write> State<R, W> {
@@ -424,4 +312,116 @@ fn initial_dict() -> HashMap<Symbol, Operation> {
     ]
     .map(|(c, op)| (c, Operation::Builtin(op)))
     .into()
+}
+
+impl Interpreter {
+    fn null() -> Self {
+        Self {
+            parent: None,
+            dict: HashMap::new(),
+            fallback: Rc::new(|_| None),
+        }
+    }
+    fn uniform(oper: Operation) -> Self {
+        Self {
+            parent: None,
+            dict: HashMap::new(),
+            fallback: Rc::new(move |_| Some(oper.clone())),
+        }
+    }
+    fn initial() -> Self {
+        Self {
+            parent: None,
+            dict: initial_dict(),
+            fallback: Rc::new(|_| Some(Operation::Builtin(BuiltinOperation::Nop))),
+        }
+    }
+    fn quote(original: Rc<Self>) -> Self {
+        Self {
+            parent: None,
+            dict: HashMap::new(),
+            fallback: Rc::new(move |s| {
+                let original = Rc::clone(&original);
+                Some(Operation::Quotesym(Box::new((s, original))))
+            })
+        }
+    }
+    fn deep_quote(original: Rc<Self>) -> Self {
+        Self {
+            parent: None,
+            dict: HashMap::new(),
+            fallback: Rc::new(move |s| {
+                let original = Rc::clone(&original);
+                Some(Operation::Deepquote(Box::new((s, original))))
+            })
+        }
+    }
+    fn get_parent(&self) -> Rc<Self> {
+        self.parent.as_ref()
+            .map(Rc::clone)
+            .unwrap_or_else(|| Rc::new(Interpreter::null()))
+    }
+    fn set_parent(original: Rc<Self>, parent: Rc<Self>) -> Rc<Self> {
+        // Modify the interpreter in-place if possible; otherwise, clone its
+        // character dictionary and fallback functions and make a new one.
+        Rc::new(match Rc::try_unwrap(original) {
+            Ok(mut i) => {
+                i.parent = Some(parent);
+                i
+            }
+            Err(original) => {
+                Interpreter {
+                    parent: Some(parent),
+                    dict: original.dict.clone(),
+                    fallback: Rc::clone(&original.fallback)
+                }
+            }
+        })
+    }
+    fn get_action(&self, s: Symbol) -> Result<Operation, String> {
+        self.dict.get(&s).cloned()
+            .or_else(|| (self.fallback)(s))
+            .ok_or_else(|| format!("Interpreter has no definition for {}", s))
+    }
+    fn set_action(original: Rc<Self>, s: Symbol, oper: Operation) -> Rc<Self> {
+        let mut new_interpreter = match Rc::try_unwrap(original) {
+            Ok(i) => i,
+            Err(original) => (*original).clone(),
+        };
+        new_interpreter.dict.insert(s, oper);
+        Rc::new(new_interpreter)
+    }
+}
+
+trait ObjectType: Sized {
+    fn name() -> &'static str;
+    fn downcast(_: &Object) -> Option<Self>;
+}
+
+macro_rules! gen_object_downcast_impl {
+    ($type:ty, $tag:path, $name:expr) => {
+        impl ObjectType for $type {
+            fn name() -> &'static str { $name }
+            fn downcast(obj: &Object) -> Option<Self> {
+                match *obj {
+                    $tag(ref a) => Some(a.clone()),
+                    _ => None,
+                }
+            }
+        }
+    }
+}
+
+gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
+gen_object_downcast_impl!(Operation, Object::Operation, "operation");
+gen_object_downcast_impl!(Rc<Interpreter>, Object::Interpreter, "interpreter");
+
+impl Object {
+    fn name(&self) -> &'static str {
+        match *self {
+            Object::Symbol(_) => Symbol::name(),
+            Object::Operation(_) => Operation::name(),
+            Object::Interpreter(_) => <Rc<Interpreter>>::name(),
+        }
+    }
 }
