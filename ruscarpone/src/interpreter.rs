@@ -67,6 +67,7 @@ enum Operation<InterpreterPtr> {
 enum BuiltinOperation {
     Reify,
     Deify,
+    Extract,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -284,6 +285,12 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 BuiltinOperation::Deify => {
                     self.current_interpreter = Rc::clone(&self.pop_as()?);
                 }
+                BuiltinOperation::Extract => {
+                    let symbol = self.pop_as()?;
+                    let interpreter: Rc<Interpreter<_, _>> = self.pop_as()?;
+                    let action = interpreter.get_action(symbol)?;
+                    self.stack.push(Object::Action(action));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -314,13 +321,7 @@ mod initial_dict {
         let mut map = HashMap::new();
         map.insert('v', operation(Operation::Builtin(BuiltinOperation::Reify)));
         map.insert('^', operation(Operation::Builtin(BuiltinOperation::Deify)));
-        map.insert('>', action(|state| {
-            let symbol = state.pop_as()?;
-            let interpreter: Rc<Interpreter<_, _>> = state.pop_as()?;
-            let action = interpreter.get_action(symbol)?;
-            state.stack.push(Object::Action(action));
-            Ok(())
-        }));
+        map.insert('>', operation(Operation::Builtin(BuiltinOperation::Extract)));
         map.insert('<', action(|state| {
             let symbol = state.pop_as()?;
             let operation = state.pop_as()?;
