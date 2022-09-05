@@ -78,6 +78,12 @@ impl<R: Read, W: Write> State<R, W> {
             nesting: 0,
         }
     }
+    fn push_any(&mut self, obj: Object) {
+        self.stack.push(obj);
+    }
+    fn push(&mut self, elem: impl ObjectType) {
+        self.push_any(elem.upcast());
+    }
     fn pop_any(&mut self) -> Result<Object, String> {
         self.stack
             .pop()
@@ -144,81 +150,65 @@ impl<R: Read, W: Write> State<R, W> {
         Ok(str)
     }
     fn push_string(&mut self, string: &str) {
-        self.stack.push(Object::Symbol('['));
+        self.push('[');
         for symbol in string.chars() {
-            self.stack.push(Object::Symbol(symbol));
+            self.push(symbol);
         }
-        self.stack.push(Object::Symbol(']'));
+        self.push(']');
     }
     fn run_operation(&mut self, o: &Operation) -> Result<(), String> {
         match o {
             Operation::Builtin(o) => match o {
                 BuiltinOperation::Nop => {}
-                BuiltinOperation::Reify => {
-                    let current = Rc::clone(&self.current_interpreter);
-                    self.stack.push(Object::Interpreter(current));
-                }
-                BuiltinOperation::Deify => {
-                    self.current_interpreter = Rc::clone(&self.pop()?);
-                }
+                BuiltinOperation::Reify => self.push(Rc::clone(&self.current_interpreter)),
+                BuiltinOperation::Deify => self.current_interpreter = Rc::clone(&self.pop()?),
                 BuiltinOperation::Extract => {
                     let symbol = self.pop()?;
                     let interpreter: Rc<Interpreter> = self.pop()?;
-                    let oper = interpreter.get_action(symbol)?;
-                    self.stack.push(Object::Operation(oper));
+                    self.push(interpreter.get_action(symbol)?);
                 }
                 BuiltinOperation::Install => {
                     let symbol = self.pop()?;
                     let oper = self.pop()?;
                     let interpreter = self.pop()?;
-                    let new_interpreter = Interpreter::set_action(interpreter, symbol, oper);
-                    self.stack.push(Object::Interpreter(new_interpreter));
+                    self.push(Interpreter::set_action(interpreter, symbol, oper));
                 }
                 BuiltinOperation::GetParent => {
-                    let old_interpreter: Rc<Interpreter> = self.pop()?;
-                    let parent = old_interpreter.get_parent();
-                    self.stack.push(Object::Interpreter(parent));
+                    let interpreter: Rc<Interpreter> = self.pop()?;
+                    self.push(interpreter.get_parent());
                 }
                 BuiltinOperation::SetParent => {
                     let i = self.pop()?;
                     let j = self.pop()?;
-                    let new = Interpreter::set_parent(i, j);
-                    self.stack.push(Object::Interpreter(new));
+                    self.push(Interpreter::set_parent(i, j));
                 }
                 BuiltinOperation::Create => {
                     let context = self.pop()?;
                     let definition = self.pop_string()?;
-                    let custom = Rc::new(CustomOperation {
+                    self.push(Operation::Custom(Rc::new(CustomOperation {
                         context,
                         definition,
-                    });
-                    self.stack
-                        .push(Object::Operation(Operation::Custom(custom)));
+                    })))
                 }
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
                 // possible.
                 BuiltinOperation::Expand => {
                     let oper = self.pop()?;
                     self.push_string("@");
-                    let interpreter = Interpreter::uniform(oper);
-                    self.stack.push(Object::Interpreter(Rc::new(interpreter)));
+                    self.push(Rc::new(Interpreter::uniform(oper)));
                 }
                 BuiltinOperation::Perform => {
                     let oper = self.pop()?;
                     self.run_operation(&oper)?;
                 }
-                BuiltinOperation::Null => {
-                    self.stack
-                        .push(Object::Interpreter(Rc::new(Interpreter::null())));
-                }
+                BuiltinOperation::Null => self.push(Rc::new(Interpreter::null())),
                 BuiltinOperation::Uniform => {
-                    let action = self.pop()?;
-                    let interpreter = Interpreter::uniform(action);
-                    self.stack.push(Object::Interpreter(Rc::new(interpreter)));
+                    let oper = self.pop()?;
+                    self.push(Rc::new(Interpreter::uniform(oper)));
                 }
                 BuiltinOperation::Deepquote => {
                     self.nesting = 1;
-                    self.stack.push(Object::Symbol('['));
+                    self.push('[');
                     self.current_interpreter = Rc::new(Interpreter::deep_quote(Rc::clone(
                         &self.current_interpreter,
                     )));
@@ -233,12 +223,12 @@ impl<R: Read, W: Write> State<R, W> {
                 }
                 BuiltinOperation::Input => {
                     let symbol = self.read_symbol()?;
-                    self.stack.push(Object::Symbol(symbol))
+                    self.push(symbol);
                 }
                 BuiltinOperation::Dup => {
                     let e = self.pop_any()?;
-                    self.stack.push(e.clone());
-                    self.stack.push(e);
+                    self.push_any(e.clone());
+                    self.push_any(e);
                 }
                 BuiltinOperation::Pop => {
                     drop(self.pop_any()?);
@@ -246,18 +236,18 @@ impl<R: Read, W: Write> State<R, W> {
                 BuiltinOperation::Swap => {
                     let a = self.pop_any()?;
                     let b = self.pop_any()?;
-                    self.stack.push(a);
-                    self.stack.push(b);
+                    self.push_any(a);
+                    self.push_any(b);
                 }
             },
             Operation::Quotesym(b) => {
                 let (s, old_interpreter) = b.deref().clone();
-                self.stack.push(Object::Symbol(s));
+                self.push(s);
                 self.current_interpreter = old_interpreter;
             }
             Operation::Deepquote(b) => {
                 let &(s, ref old_interpreter) = b.deref();
-                self.stack.push(Object::Symbol(s));
+                self.push(s);
                 if s == ']' {
                     self.nesting -= 1;
                     if self.nesting == 0 {
@@ -409,9 +399,10 @@ impl Interpreter {
 trait ObjectType: Sized {
     fn name() -> &'static str;
     fn downcast(_: &Object) -> Option<Self>;
+    fn upcast(self) -> Object;
 }
 
-macro_rules! gen_object_downcast_impl {
+macro_rules! object_type {
     ($type:ty, $tag:path, $name:expr) => {
         impl ObjectType for $type {
             fn name() -> &'static str {
@@ -423,13 +414,16 @@ macro_rules! gen_object_downcast_impl {
                     _ => None,
                 }
             }
+            fn upcast(self) -> Object {
+                $tag(self)
+            }
         }
     };
 }
 
-gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
-gen_object_downcast_impl!(Operation, Object::Operation, "operation");
-gen_object_downcast_impl!(Rc<Interpreter>, Object::Interpreter, "interpreter");
+object_type!(Symbol, Object::Symbol, "symbol");
+object_type!(Operation, Object::Operation, "operation");
+object_type!(Rc<Interpreter>, Object::Interpreter, "interpreter");
 
 impl Object {
     fn name(&self) -> &'static str {
