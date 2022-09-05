@@ -215,7 +215,9 @@ impl<R: Read, W: Write> State<R, W> {
                 }
                 BuiltinOperation::GetParent => {
                     let interpreter: Rc<Interpreter> = self.pop()?;
-                    self.push(interpreter.get_parent());
+                    let parent = interpreter.get_parent(&self.named_interpreters);
+                    let parent = Rc::clone(parent);
+                    self.push(parent);
                 }
                 BuiltinOperation::SetParent => {
                     let i = self.pop()?;
@@ -421,11 +423,8 @@ impl Interpreter {
             fallback: InterpreterFallback::Deepquote(original),
         }
     }
-    fn get_parent(&self) -> Rc<Self> {
-        self.parent
-            .as_ref()
-            .map(Rc::clone)
-            .unwrap_or_else(|| Rc::new(Interpreter::null()))
+    fn get_parent<'a>(&'a self, ctx: &'a InterpretersCtx) -> &'a Rc<Self> {
+        self.parent.as_ref().unwrap_or_else(|| &ctx.null)
     }
     fn set_parent(original: Rc<Self>, parent: Rc<Self>) -> Rc<Self> {
         // Modify the interpreter in-place if possible; otherwise, clone its
