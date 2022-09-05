@@ -123,7 +123,7 @@ impl<R: Read, W: Write> State<R, W> {
         T::downcast(&element)
             .ok_or_else(|| format!("Tried to pop {}, got {}", T::name(), element.name()))
     }
-    fn pop_string(&mut self) -> Result<String, String> {
+    fn pop_string(&mut self) -> Result<(String, usize), String> {
         match self.stack.last() {
             None => return Err("Tried to pop string from empty stack".to_owned()),
             Some(Object::Symbol(c)) => {
@@ -170,7 +170,7 @@ impl<R: Read, W: Write> State<R, W> {
             })
             .collect();
         self.stack.truncate(idx);
-        Ok(str)
+        Ok((str, string_end - string_start))
     }
     fn push_string(&mut self, string: &str) {
         self.push('[');
@@ -206,12 +206,16 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push(Interpreter::set_parent(i, j));
                 }
                 BuiltinOperation::Create => {
-                    let context = self.pop()?;
-                    let definition = self.pop_string()?;
-                    self.push(Operation::Custom(Rc::new(CustomOperation {
-                        context,
-                        definition,
-                    })))
+                    let context: Rc<Interpreter> = self.pop()?;
+                    let (definition, len) = self.pop_string()?;
+                    self.push(match len {
+                        0 => Operation::Builtin(BuiltinOperation::Nop),
+                        1 => context.get_action(definition.chars().next().unwrap())?,
+                        _ => Operation::Custom(Rc::new(CustomOperation {
+                            context,
+                            definition,
+                        }))
+                    })
                 }
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
                 // possible.
