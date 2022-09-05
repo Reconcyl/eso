@@ -79,6 +79,7 @@ enum BuiltinOperation {
     Deepquote,
     Quotesym,
     Output,
+    Input,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -372,6 +373,14 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     let symbol = self.pop_as()?;
                     self.write_symbol(symbol)?;
                 }
+                BuiltinOperation::Input =>
+                    match self.input.next() {
+                        None => return Err(String::from("End of input")),
+                        Some(Err(e)) => return Err(format!("{}", e)),
+                        Some(Ok(byte)) => {
+                            self.stack.push(Object::Symbol(byte as char));
+                        }
+                    }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -414,16 +423,7 @@ mod initial_dict {
         map.insert('[', operation(Operation::Builtin(BuiltinOperation::Deepquote)));
         map.insert('\'', operation(Operation::Builtin(BuiltinOperation::Quotesym)));
         map.insert('.', operation(Operation::Builtin(BuiltinOperation::Output)));
-        map.insert(',', action(|state| {
-            match state.input.next() {
-                None => Err(String::from("End of input")),
-                Some(Err(e)) => Err(format!("{}", e)),
-                Some(Ok(byte)) => {
-                    state.stack.push(Object::Symbol(byte as char));
-                    Ok(())
-                }
-            }
-        }));
+        map.insert('.', operation(Operation::Builtin(BuiltinOperation::Input)));
         map.insert(':', action(|state| {
             let e = state.pop_any()?;
             state.stack.push(e.clone());
