@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::mem;
-use std::ops::Deref;
 use std::rc::Rc;
 
 pub struct State<R, W> {
@@ -35,8 +34,8 @@ struct Interpreter {
 #[derive(Clone)]
 enum Operation {
     Builtin(BuiltinOperation),
-    Quotesym(Box<(Symbol, Rc<Interpreter>)>),
-    Deepquote(Box<(Symbol, Rc<Interpreter>)>),
+    Quotesym(Symbol, Rc<Interpreter>),
+    Deepquote(Symbol, Rc<Interpreter>),
     Custom(Rc<CustomOperation>),
 }
 
@@ -154,7 +153,7 @@ impl<R: Read, W: Write> State<R, W> {
         self.push(']');
     }
     fn run_operation(&mut self, o: &Operation) -> Result<(), String> {
-        match o {
+        match *o {
             Operation::Builtin(o) => match o {
                 BuiltinOperation::Nop => {}
                 BuiltinOperation::Reify => self.push(Rc::clone(&self.current_interpreter)),
@@ -237,13 +236,11 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push_any(b);
                 }
             },
-            Operation::Quotesym(b) => {
-                let (s, old_interpreter) = b.deref().clone();
+            Operation::Quotesym(s, ref old_interpreter) => {
                 self.push(s);
-                self.current_interpreter = old_interpreter;
+                self.current_interpreter = Rc::clone(old_interpreter);
             }
-            Operation::Deepquote(b) => {
-                let &(s, ref old_interpreter) = b.deref();
+            Operation::Deepquote(s, ref old_interpreter) => {
                 self.push(s);
                 if s == ']' {
                     self.nesting -= 1;
@@ -254,7 +251,7 @@ impl<R: Read, W: Write> State<R, W> {
                     self.nesting += 1;
                 }
             }
-            Operation::Custom(custom) => {
+            Operation::Custom(ref custom) => {
                 let old_interpreter =
                     mem::replace(&mut self.current_interpreter, Rc::clone(&custom.context));
                 self.run(custom.definition.chars())?;
@@ -343,7 +340,7 @@ impl Interpreter {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(Operation::Quotesym(Box::new((s, original))))
+                Some(Operation::Quotesym(s, original))
             }),
         }
     }
@@ -353,7 +350,7 @@ impl Interpreter {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(Operation::Deepquote(Box::new((s, original))))
+                Some(Operation::Deepquote(s, original))
             }),
         }
     }
