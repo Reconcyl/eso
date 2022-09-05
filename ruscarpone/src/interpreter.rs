@@ -203,29 +203,47 @@ impl<R: Read, W: Write> State<R, W> {
             .ok_or(format!("Tried to pop {}, got {}", T::name(), element.name()))
     }
     fn pop_string(&mut self) -> Result<String, String> {
-        // Expect a ']'.
-        match self.pop_as()? {
-            ']' => {}
-            o => return Err(format!("Tried to pop string, got symbol {:?}", o))
+        match self.stack.last() {
+            None => return Err("Tried to pop string from empty stack".into()),
+            Some(Object::Symbol(c)) =>
+                if *c != ']' {
+                    return Err(format!(
+                        "Expected symbol ']' at end of string, got symbol '{}'", c));
+                }
+            Some(o) =>
+                return Err(format!("Expected string, got {}", o.name()))
         }
-        // Read the characters of the string from the stack in reverse order.
-        let mut characters = Vec::new();
-        let mut nesting = 1;
-        while nesting > 0 {
-            let c: Symbol = self.pop_as()?;
-            if c == ']' {
-                nesting += 1;
+        // scan the stack backwards to find the matching `[`
+        let string_end = self.stack.len() - 1;
+        let mut idx = string_end;
+        let mut nesting = 1u32;
+        loop {
+            if idx == 0 {
+                return Err("Tried to pop string, got end of stack".into());
             }
-            else if c == '[' {
-                nesting -= 1;
+            idx -= 1;
+            match &self.stack[idx] {
+                Object::Symbol(']') => nesting += 1,
+                Object::Symbol('[') => nesting -= 1,
+                Object::Symbol(_) => {}
+                o => return Err(
+                    format!("Expected symbol while popping string, got {}", o.name())),
             }
-            characters.push(c);
+            if nesting == 0 {
+                break;
+            }
         }
-        // This includes the final opening '[', so we remove that.
-        characters.pop();
-        characters.reverse();
-        // TODO: encode as utf8 from the start
-        Ok(characters.into_iter().collect())
+        let string_start = idx + 1;
+        // read the string contents starting from this index
+        let str = self.stack[string_start..string_end]
+            .iter()
+            .map(|o| match o {
+                Object::Symbol(c) => c,
+                _ => unreachable!()
+            })
+            .collect();
+        self.stack.truncate(idx);
+        Ok(str)
     }
     fn push_string(&mut self, string: &str) {
         self.stack.push(Object::Symbol('['));
