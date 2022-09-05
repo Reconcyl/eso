@@ -276,7 +276,11 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     fn run_operation(&mut self, o: &Operation<Rc<Interpreter<'a, R, W>>>) -> Result<(), String> {
         match o {
             Operation::Builtin(o) => match o {
-                BuiltinOperation::Reify => todo!(),
+                BuiltinOperation::Reify => {
+                    let current = Rc::clone(&self.current_interpreter);
+                    self.stack.push(Object::Interpreter(current));
+                    Ok(())
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -304,11 +308,7 @@ mod initial_dict {
         -> HashMap<Symbol, Rc<Action<'a, R, W>>>
     {
         let mut map = HashMap::new();
-        map.insert('v', action(|state| {
-            let current = Rc::clone(&state.current_interpreter);
-            state.stack.push(Object::Interpreter(current));
-            Ok(())
-        }));
+        map.insert('v', operation(Operation::Builtin(BuiltinOperation::Reify)));
         map.insert('^', action(|state| {
             state.current_interpreter = Rc::clone(&state.pop_as()?);
             Ok(())
