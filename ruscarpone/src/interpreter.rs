@@ -76,6 +76,7 @@ enum BuiltinOperation {
     Perform,
     Null,
     Uniform,
+    Deepquote,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -353,6 +354,13 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     let interpreter = Interpreter::uniform(action);
                     self.stack.push(Object::Interpreter(Rc::new(interpreter)));
                 }
+                BuiltinOperation::Deepquote => {
+                    self.nesting = 1;
+                    self.stack.push(Object::Symbol('['));
+                    self.current_interpreter = Rc::new(
+                        Interpreter::deep_quote(Rc::clone(
+                            &self.current_interpreter)));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -392,14 +400,7 @@ mod initial_dict {
         map.insert('!', operation(Operation::Builtin(BuiltinOperation::Perform)));
         map.insert('0', operation(Operation::Builtin(BuiltinOperation::Null)));
         map.insert('1', operation(Operation::Builtin(BuiltinOperation::Uniform)));
-        map.insert('[', action(|state| {
-            state.nesting = 1;
-            state.stack.push(Object::Symbol('['));
-            state.current_interpreter = Rc::new(
-                Interpreter::deep_quote(Rc::clone(
-                    &state.current_interpreter)));
-            Ok(())
-        }));
+        map.insert('[', operation(Operation::Builtin(BuiltinOperation::Deepquote)));
         map.insert('\'', action(|state| {
             state.current_interpreter = Rc::new(
                 Interpreter::quote(Rc::clone(
