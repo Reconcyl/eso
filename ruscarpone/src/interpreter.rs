@@ -28,7 +28,7 @@ impl<'a, R: 'a, W: 'a> Clone for Object<'a, R, W> {
 
 struct Interpreter<'a, R, W> {
     parent: Option<Rc<Interpreter<'a, R, W>>>,
-    dict: HashMap<Symbol, Action<'a, R, W>>,
+    dict: HashMap<Symbol, Operation<Rc<Self>>>,
     // In the case that the character dictionary of an interpreter does not contain a definition
     // for a symbol, we also try a fallback function. This is so that interpreters that have a
     // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
@@ -206,18 +206,18 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             }
         })
     }
-    fn get_action(&self, s: Symbol) -> Result<Action<'a, R, W>, String> {
-        self.dict.get(&s).map(Rc::clone)
-            .or_else(|| (self.fallback)(s).map(operation))
+    fn get_action(&self, s: Symbol) -> Result<Operation<Rc<Self>>, String> {
+        self.dict.get(&s).cloned()
+            .or_else(|| (self.fallback)(s))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
     fn set_action(original: Rc<Interpreter<'a, R, W>>,
-                     s: Symbol, a: Action<'a, R, W>) -> Rc<Interpreter<'a, R, W>> {
+                  s: Symbol, oper: Operation<Rc<Self>>) -> Rc<Interpreter<'a, R, W>> {
         let mut new_interpreter = match Rc::try_unwrap(original) {
             Ok(i) => i,
             Err(original) => (*original).clone(),
         };
-        new_interpreter.dict.insert(s, a);
+        new_interpreter.dict.insert(s, oper);
         Rc::new(new_interpreter)
     }
 }
@@ -290,17 +290,17 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 BuiltinOperation::Extract => {
                     let symbol = self.pop_as()?;
                     let interpreter: Rc<Interpreter<_, _>> = self.pop_as()?;
-                    let action = interpreter.get_action(symbol)?;
-                    self.stack.push(Object::Action(action));
+                    let oper = interpreter.get_action(symbol)?;
+                    self.stack.push(Object::Operation(oper));
                 }
                 BuiltinOperation::Install => {
                     let symbol = self.pop_as()?;
-                    let operation = self.pop_as()?;
+                    let oper = self.pop_as()?;
                     let interpreter = self.pop_as()?;
                     let new_interpreter = Interpreter::set_action(
                         interpreter,
                         symbol,
-                        operation
+                        oper
                     );
                     self.stack.push(Object::Interpreter(new_interpreter));
                 }
@@ -408,7 +408,8 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
         Ok(())
     }
     pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
-        self.current_interpreter.get_action(s)?(self)
+        let oper = self.current_interpreter.get_action(s)?;
+        self.run_operation(&oper)
     }
     pub fn run<I: IntoIterator<Item=Symbol>>(&mut self, symbols: I) -> Result<(), String> {
         for s in symbols.into_iter() {
@@ -424,7 +425,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     }
 }
 
-fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Action<'a, R, W>> {
+fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Operation<Rc<Interpreter<'a, R, W>>>> {
     [
         ('v',  BuiltinOperation::Reify),
         ('^',  BuiltinOperation::Deify),
@@ -445,6 +446,6 @@ fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Action<'a,
         ('$',  BuiltinOperation::Pop),
         ('/',  BuiltinOperation::Swap),
     ]
-    .map(|(c, op)| (c, operation(Operation::Builtin(op))))
+    .map(|(c, op)| (c, Operation::Builtin(op)))
     .into()
 }
