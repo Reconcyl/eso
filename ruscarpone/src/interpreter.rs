@@ -8,7 +8,6 @@ type Symbol = char;
 
 enum Object<'a, R, W> {
     Symbol(Symbol),
-    Action(Action<'a, R, W>),
     Operation(Operation<Rc<Interpreter<'a, R, W>>>),
     Interpreter(Rc<Interpreter<'a, R, W>>),
 }
@@ -19,7 +18,6 @@ impl<'a, R: 'a, W: 'a> Clone for Object<'a, R, W> {
     fn clone(&self) -> Self {
         match self {
             Object::Symbol(s) => Object::Symbol(*s),
-            Object::Action(o) => Object::Action(Rc::clone(o)),
             Object::Operation(o) => Object::Operation(o.clone()),
             Object::Interpreter(i) => Object::Interpreter(Rc::clone(i))
         }
@@ -90,22 +88,6 @@ struct CustomOperation<InterpreterPtr> {
     definition: String,
 }
 
-type Action<'a, R, W> = Rc<dyn Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a>;
-
-// Constucton an `Action` out of a closure.
-fn action<'a, R, W, F>(closure: F) -> Action<'a, R, W>
-where
-    F: Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a,
-{
-    Rc::new(closure)
-}
-
-fn operation<'a, R: Read + 'a, W: Write + 'a>(
-    o: Operation<Rc<Interpreter<'a, R, W>>>
-) -> Action<'a, R, W> {
-    action(move |state| state.run_operation(&o))
-}
-
 trait ObjectType<'a, R, W>: Sized {
     fn name() -> &'static str;
     fn downcast(_: &Object<'a, R, W>) -> Option<Self>;
@@ -126,7 +108,6 @@ macro_rules! gen_object_downcast_impl {
 }
 
 gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
-gen_object_downcast_impl!(Action<'a, R, W>, Object::Action, "action");
 gen_object_downcast_impl!(Operation<Rc<Interpreter<'a, R, W>>>, Object::Operation, "operation");
 gen_object_downcast_impl!(Rc<Interpreter<'a, R, W>>, Object::Interpreter, "interpreter");
 
@@ -134,7 +115,6 @@ impl<'a, R: Read + 'a, W: Write + 'a> Object<'a, R, W> {
     fn name(&self) -> &'static str {
         match *self {
             Object::Symbol(_) => <Symbol as ObjectType<R, W>>::name(),
-            Object::Action(_) => <Action<R, W>>::name(),
             Object::Operation(_) => <Operation<Rc<Interpreter<'a, R, W>>>>::name(),
             Object::Interpreter(_) => <Rc<Interpreter<R, W>>>::name(),
         }
@@ -330,8 +310,8 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(Object::Interpreter(Rc::new(interpreter)));
                 }
                 BuiltinOperation::Perform => {
-                    let action: Action<_, _> = self.pop_as()?;
-                    action(self)?;
+                    let oper = self.pop_as()?;
+                    self.run_operation(&oper)?;
                 }
                 BuiltinOperation::Null => {
                     self.stack.push(Object::Interpreter(Rc::new(Interpreter::null())));
