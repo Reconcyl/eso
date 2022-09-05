@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 pub struct State<R, W> {
     current_interpreter: Rc<Interpreter>,
+    initial_interpreter: Rc<Interpreter>,
     stack: Vec<Object>,
     input: io::Bytes<R>,
     output: W,
@@ -47,7 +48,23 @@ enum Operation {
     Custom(Rc<CustomOperation>),
 }
 
-#[derive(Clone, Copy)]
+impl PartialEq for Operation {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Operation::Builtin(b1), Operation::Builtin(b2)) => b1 == b2,
+            (Operation::Quotesym(s1, i1), Operation::Quotesym(s2, i2)) => {
+                s1 == s2 && Rc::ptr_eq(i1, i2)
+            }
+            (Operation::Deepquote(s1, i1), Operation::Deepquote(s2, i2)) => {
+                s1 == s2 && Rc::ptr_eq(i1, i2)
+            }
+            (Operation::Custom(c1), Operation::Custom(c2)) => Rc::ptr_eq(c1, c2),
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum BuiltinOperation {
     Nop,
     Reify,
@@ -77,8 +94,10 @@ struct CustomOperation {
 
 impl<R: Read, W: Write> State<R, W> {
     pub fn new(input: R, output: W) -> Self {
+        let initial = Rc::new(Interpreter::initial());
         State {
-            current_interpreter: Rc::new(Interpreter::initial()),
+            current_interpreter: Rc::clone(&initial),
+            initial_interpreter: initial,
             stack: Vec::new(),
             input: input.bytes(),
             output,
@@ -278,6 +297,14 @@ impl<R: Read, W: Write> State<R, W> {
         }
         Ok(())
     }
+    pub fn debug_stack_contents(&mut self) {
+        let mut s = String::new();
+        for obj in &self.stack {
+            if !s.is_empty() { s.push(' '); }
+            obj.show(&mut s, &self.initial_interpreter);
+        }
+        eprintln!("{}", s);
+    }
     fn write_symbol(&mut self, symbol: Symbol) -> Result<(), String> {
         let buf = &mut [0u8; 4];
         let buf = symbol.encode_utf8(buf).as_bytes();
@@ -292,6 +319,15 @@ impl<R: Read, W: Write> State<R, W> {
             Some(Err(e)) => return Err(e.to_string()),
             Some(Ok(byte)) => Ok(byte as char),
         }
+    }
+}
+
+fn show_symbol(s: Symbol, out: &mut String) {
+    if s == '\n' {
+        out.push_str("\\n")
+    } else {
+        out.push('\'');
+        out.push(s);
     }
 }
 
@@ -392,20 +428,105 @@ impl Interpreter {
         new_interpreter.dict.insert(s, oper);
         Rc::new(new_interpreter)
     }
+    fn show(&self, out: &mut String, initial_interpreter: &Self) {
+        out.push('(');
+        let mut precursor = None;
+        // base interpreter
+        match self.fallback {
+            InterpreterFallback::None => out.push('0'),
+            // TODO: it's a bug to assume that an interpreter is derived from ^
+            // just because its fallback is nop.
+            InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop)) => {
+                precursor = Some(initial_interpreter);
+                out.push('v');
+            }
+            InterpreterFallback::Uniform(ref oper) => {
+                oper.show(out, initial_interpreter);
+                out.push('1');
+            }
+            // TODO: get good string representations for these interpreters.
+            // Given only the currently available instructions, it's
+            // impossible to get them on the stack, so it's not that important.
+            InterpreterFallback::Quotesym(_) => out.push_str("<quotesym>"),
+            InterpreterFallback::Deepquote(_) => out.push_str("<deepquote>"),
+        }
+        for (s, oper) in self.dict.iter() {
+            if precursor.map_or(false, |p| p.dict.get(s) == Some(oper)) {
+                // no need to include this operation
+                continue;
+            }
+            out.push(' ');
+            oper.show(out, initial_interpreter);
+            show_symbol(*s, out);
+            out.push('<');
+            oper.show(out, initial_interpreter);
+        }
+        out.push(')');
+    }
 }
 
 impl InterpreterFallback {
     fn get_operation(&self, s: Symbol) -> Option<Operation> {
         match self {
-            InterpreterFallback::None => None,
-            InterpreterFallback::Uniform(oper) => Some(oper.clone()),
-            InterpreterFallback::Quotesym(original) => {
-                Some(Operation::Quotesym(s, Rc::clone(original)))
+            Self::None => None,
+            Self::Uniform(oper) => Some(oper.clone()),
+            Self::Quotesym(original) => Some(Operation::Quotesym(s, Rc::clone(original))),
+            Self::Deepquote(original) => Some(Operation::Deepquote(s, Rc::clone(original))),
+        }
+    }
+}
+
+impl Operation {
+    fn show(&self, out: &mut String, initial_interpreter: &Interpreter) {
+        out.push('(');
+        match *self {
+            Self::Builtin(b) => b.show(out),
+            Self::Quotesym(s, _) => {
+                out.push('[');
+                show_symbol(s, out);
+                out.push_str("]v*");
             }
-            InterpreterFallback::Deepquote(original) => {
-                Some(Operation::Deepquote(s, Rc::clone(original)))
+            Self::Deepquote(s, _) => {
+                // TODO: figure out a better way to represent this
+                out.push_str("<deepquote-");
+                out.push(s);
+                out.push('>');
+            }
+            Self::Custom(ref custom) => {
+                out.push('[');
+                out.push_str(&custom.definition);
+                out.push(']');
+                custom.context.show(out, initial_interpreter);
+                out.push('*');
             }
         }
+        out.push(')');
+    }
+}
+
+impl BuiltinOperation {
+    fn show(self, out: &mut String) {
+        out.push_str(match self {
+            Self::Nop => "[]v*",
+            Self::Reify => "v('v)>",
+            Self::Deify => "v('^)>",
+            Self::Extract => "v('>)>",
+            Self::Install => "v('<)>",
+            Self::GetParent => "v('{)>",
+            Self::SetParent => "v('})>",
+            Self::Create => "v('*)>",
+            Self::Expand => "v('@)>",
+            Self::Perform => "v('!)>",
+            Self::Null => "v('0)>",
+            Self::Uniform => "v('1)>",
+            Self::Deepquote => "v('[)>",
+            Self::Quotesym => "v('')>",
+            Self::Output => "v('.)>",
+            Self::Input => "v(',)>",
+            Self::Dup => "v(':)>",
+            Self::Pop => "v('$)>",
+            Self::Swap => "v('/)>",
+        })
     }
 }
 
@@ -444,6 +565,14 @@ impl Object {
             Object::Symbol(_) => Symbol::name(),
             Object::Operation(_) => Operation::name(),
             Object::Interpreter(_) => <Rc<Interpreter>>::name(),
+        }
+    }
+
+    fn show(&self, out: &mut String, initial_interpreter: &Interpreter) {
+        match self {
+            Object::Symbol(s) => show_symbol(*s, out),
+            Object::Operation(oper) => oper.show(out, initial_interpreter),
+            Object::Interpreter(int) => int.show(out, initial_interpreter),
         }
     }
 }

@@ -45,6 +45,7 @@ fn repl() -> Result<(), String> {
     let stdin = io::stdin();
     while let Some(line) = read_line(&stdin, "> ")? {
         state.run(line.chars())?;
+        state.debug_stack_contents();
     }
     Ok(())
 }
