@@ -11,7 +11,7 @@ type Symbol = char;
 
 enum Object<'a, R, W> {
     Symbol(Symbol),
-    Action(Rc<Action<'a, R, W>>),
+    Action(Action<'a, R, W>),
     Operation(Operation<Rc<Interpreter<'a, R, W>>>),
     Interpreter(Rc<Interpreter<'a, R, W>>),
 }
@@ -31,12 +31,12 @@ impl<'a, R: 'a, W: 'a> Clone for Object<'a, R, W> {
 
 struct Interpreter<'a, R, W> {
     parent: Option<Rc<Interpreter<'a, R, W>>>,
-    dict: HashMap<Symbol, Rc<Action<'a, R, W>>>,
+    dict: HashMap<Symbol, Action<'a, R, W>>,
     // In the case that the character dictionary of an interpreter does not contain a definition
     // for a symbol, we also try a fallback function. This is so that interpreters that have a
     // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
     // don't have to fill in every character.
-    fallback: Rc<dyn Fn(Symbol) -> Option<Rc<Action<'a, R, W>>> + 'a>,
+    fallback: Rc<dyn Fn(Symbol) -> Option<Action<'a, R, W>> + 'a>,
 }
 
 impl<'a, R: 'a, W: 'a> Clone for Interpreter<'a, R, W> {
@@ -90,10 +90,10 @@ struct CustomOperation<InterpreterPtr> {
     definition: String,
 }
 
-type Action<'a, R, W> = dyn Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a;
+type Action<'a, R, W> = Rc<dyn Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a>;
 
-// Constucton an `Rc<Action>` out of a closure.
-fn action<'a, R, W, F>(closure: F) -> Rc<Action<'a, R, W>>
+// Constucton an `Action` out of a closure.
+fn action<'a, R, W, F>(closure: F) -> Action<'a, R, W>
 where
     F: Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a,
 {
@@ -102,7 +102,7 @@ where
 
 fn operation<'a, R: Read + 'a, W: Write + 'a>(
     o: Operation<Rc<Interpreter<'a, R, W>>>
-) -> Rc<Action<'a, R, W>> {
+) -> Action<'a, R, W> {
     action(move |state| state.run_operation(&o))
 }
 
@@ -126,7 +126,7 @@ macro_rules! gen_object_downcast_impl {
 }
 
 gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
-gen_object_downcast_impl!(Rc<Action<'a, R, W>>, Object::Action, "action");
+gen_object_downcast_impl!(Action<'a, R, W>, Object::Action, "action");
 gen_object_downcast_impl!(Operation<Rc<Interpreter<'a, R, W>>>, Object::Operation, "operation");
 gen_object_downcast_impl!(Rc<Interpreter<'a, R, W>>, Object::Interpreter, "interpreter");
 
@@ -134,7 +134,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Object<'a, R, W> {
     fn name(&self) -> &'static str {
         match *self {
             Object::Symbol(_) => <Symbol as ObjectType<R, W>>::name(),
-            Object::Action(_) => <Rc<Action<R, W>>>::name(),
+            Object::Action(_) => <Action<R, W>>::name(),
             Object::Operation(_) => <Operation<Rc<Interpreter<'a, R, W>>>>::name(),
             Object::Interpreter(_) => <Rc<Interpreter<R, W>>>::name(),
         }
@@ -149,7 +149,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             fallback: Rc::new(|_| None),
         }
     }
-    fn uniform(action: Rc<Action<'a, R, W>>) -> Self {
+    fn uniform(action: Action<'a, R, W>) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
@@ -221,13 +221,13 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             }
         })
     }
-    fn get_action(&self, s: Symbol) -> Result<Rc<Action<'a, R, W>>, String> {
+    fn get_action(&self, s: Symbol) -> Result<Action<'a, R, W>, String> {
         self.dict.get(&s).map(Rc::clone)
             .or_else(|| (self.fallback)(s).map(Into::into))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
     fn set_action(original: Rc<Interpreter<'a, R, W>>,
-                     s: Symbol, a: Rc<Action<'a, R, W>>) -> Rc<Interpreter<'a, R, W>> {
+                     s: Symbol, a: Action<'a, R, W>) -> Rc<Interpreter<'a, R, W>> {
         let mut new_interpreter = match Rc::try_unwrap(original) {
             Ok(i) => i,
             Err(original) => (*original).clone(),
@@ -349,7 +349,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(Object::Interpreter(Rc::new(interpreter)));
                 }
                 BuiltinOperation::Perform => {
-                    let action: Rc<Action<_, _>> = self.pop_as()?;
+                    let action: Action<_, _> = self.pop_as()?;
                     action(self)?;
                 }
                 BuiltinOperation::Null => {
@@ -420,7 +420,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     }
 }
 
-fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Rc<Action<'a, R, W>>> {
+fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Action<'a, R, W>> {
     [
         ('v',  BuiltinOperation::Reify),
         ('^',  BuiltinOperation::Deify),
