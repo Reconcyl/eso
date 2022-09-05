@@ -80,6 +80,7 @@ enum BuiltinOperation {
     Quotesym,
     Output,
     Input,
+    Dup,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -381,6 +382,11 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                             self.stack.push(Object::Symbol(byte as char));
                         }
                     }
+                BuiltinOperation::Dup => {
+                    let e = self.pop_any()?;
+                    self.stack.push(e.clone());
+                    self.stack.push(e);
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -424,12 +430,7 @@ mod initial_dict {
         map.insert('\'', operation(Operation::Builtin(BuiltinOperation::Quotesym)));
         map.insert('.', operation(Operation::Builtin(BuiltinOperation::Output)));
         map.insert('.', operation(Operation::Builtin(BuiltinOperation::Input)));
-        map.insert(':', action(|state| {
-            let e = state.pop_any()?;
-            state.stack.push(e.clone());
-            state.stack.push(e);
-            Ok(())
-        }));
+        map.insert(':', operation(Operation::Builtin(BuiltinOperation::Dup)));
         map.insert('$', action(|state| {
             state.pop_any().map(|_| ())
         }));
