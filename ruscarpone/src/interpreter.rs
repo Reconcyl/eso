@@ -329,7 +329,7 @@ impl<R: Read, W: Write> State<R, W> {
                     self.stack.push(e);
                 }
                 BuiltinOperation::Pop => {
-                    self.pop_any().map(|_| ())?;
+                    drop(self.pop_any()?);
                 }
                 BuiltinOperation::Swap => {
                     let a = self.pop_any()?;
