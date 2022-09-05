@@ -159,7 +159,7 @@ impl<R: Read, W: Write> State<R, W> {
         let mut nesting = 1u32;
         loop {
             if idx == 0 {
-                return Err("Tried to pop string, got end of stack".into());
+                return Err("Tried to pop string, got end of stack".to_owned());
             }
             idx -= 1;
             match &self.stack[idx] {
@@ -343,7 +343,7 @@ impl<R: Read, W: Write> State<R, W> {
     }
     fn read_symbol(&mut self) -> Result<Symbol, String> {
         match self.input.next() {
-            None => return Err(String::from("End of input")),
+            None => return Err("End of input".to_owned()),
             Some(Err(e)) => return Err(e.to_string()),
             Some(Ok(byte)) => Ok(byte as char),
         }
