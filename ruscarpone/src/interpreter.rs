@@ -5,11 +5,16 @@ use std::rc::Rc;
 
 pub struct State<R, W> {
     current_interpreter: Rc<Interpreter>,
-    initial_interpreter: Rc<Interpreter>,
+    named_interpreters: InterpretersCtx,
     stack: Vec<Object>,
     input: io::Bytes<R>,
     output: W,
     nesting: u32,
+}
+
+struct InterpretersCtx {
+    initial: Rc<Interpreter>,
+    null: Rc<Interpreter>,
 }
 
 type Symbol = char;
@@ -106,7 +111,10 @@ impl<R: Read, W: Write> State<R, W> {
         let initial = Rc::new(Interpreter::initial());
         State {
             current_interpreter: Rc::clone(&initial),
-            initial_interpreter: initial,
+            named_interpreters: InterpretersCtx {
+                initial,
+                null: Rc::new(Interpreter::null()),
+            },
             stack: Vec::new(),
             input: input.bytes(),
             output,
@@ -237,7 +245,7 @@ impl<R: Read, W: Write> State<R, W> {
                     let oper = self.pop()?;
                     self.run_operation(&oper)?;
                 }
-                BuiltinOperation::Null => self.push(Rc::new(Interpreter::null())),
+                BuiltinOperation::Null => self.push(Rc::clone(&self.named_interpreters.null)),
                 BuiltinOperation::Uniform => {
                     let oper = self.pop()?;
                     self.push(Rc::new(Interpreter::uniform(oper)));
@@ -319,7 +327,7 @@ impl<R: Read, W: Write> State<R, W> {
             if !s.is_empty() {
                 s.push(' ');
             }
-            obj.show(&mut s, &self.initial_interpreter);
+            obj.show(&mut s, &self.named_interpreters);
         }
         eprintln!("{}", s);
     }
@@ -449,20 +457,20 @@ impl Interpreter {
         new_interpreter.dict.insert(s, oper);
         Rc::new(new_interpreter)
     }
-    fn show(&self, out: &mut String, initial_interpreter: &Self) {
+    fn show(&self, out: &mut String, ctx: &InterpretersCtx) {
         out.push('(');
         let mut precursor = None;
         // base interpreter
         match (&self.archetype, &self.fallback) {
             (InterpreterArchetype::Initial, _) => {
-                precursor = Some(initial_interpreter);
+                precursor = Some(&ctx.initial);
                 out.push('v');
             }
             (_, InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal))) => {
                 out.push('0')
             }
             (_, InterpreterFallback::Uniform(ref oper)) => {
-                oper.show(out, initial_interpreter);
+                oper.show(out, ctx);
                 out.push('1');
             }
             // TODO: get good string representations for these interpreters.
@@ -477,10 +485,10 @@ impl Interpreter {
                 continue;
             }
             out.push(' ');
-            oper.show(out, initial_interpreter);
+            oper.show(out, ctx);
             show_symbol(*s, out);
             out.push('<');
-            oper.show(out, initial_interpreter);
+            oper.show(out, ctx);
         }
         out.push(')');
     }
@@ -497,7 +505,7 @@ impl InterpreterFallback {
 }
 
 impl Operation {
-    fn show(&self, out: &mut String, initial_interpreter: &Interpreter) {
+    fn show(&self, out: &mut String, ctx: &InterpretersCtx) {
         out.push('(');
         match *self {
             Self::Builtin(b) => b.show(out),
@@ -516,7 +524,7 @@ impl Operation {
                 out.push('[');
                 out.push_str(&custom.definition);
                 out.push(']');
-                custom.context.show(out, initial_interpreter);
+                custom.context.show(out, ctx);
                 out.push('*');
             }
         }
@@ -589,11 +597,11 @@ impl Object {
         }
     }
 
-    fn show(&self, out: &mut String, initial_interpreter: &Interpreter) {
+    fn show(&self, out: &mut String, ctx: &InterpretersCtx) {
         match self {
             Object::Symbol(s) => show_symbol(*s, out),
-            Object::Operation(oper) => oper.show(out, initial_interpreter),
-            Object::Interpreter(int) => int.show(out, initial_interpreter),
+            Object::Operation(oper) => oper.show(out, ctx),
+            Object::Interpreter(int) => int.show(out, ctx),
         }
     }
 }
