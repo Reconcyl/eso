@@ -25,7 +25,15 @@ enum Object {
 struct Interpreter {
     parent: Option<Rc<Self>>,
     dict: HashMap<Symbol, Operation>,
+    archetype: InterpreterArchetype,
     fallback: InterpreterFallback,
+}
+
+// Metadata about the nature of the interpreter from which this one was derived.
+#[derive(Clone)]
+enum InterpreterArchetype {
+    Initial,
+    Other,
 }
 
 // In the case that the character dictionary of an interpreter does not contain a definition
@@ -367,24 +375,25 @@ fn initial_dict() -> HashMap<Symbol, Operation> {
 }
 
 impl Interpreter {
-    fn null() -> Self {
-        Self {
-            parent: None,
-            dict: HashMap::new(),
-            fallback: InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal)),
-        }
-    }
     fn uniform(oper: Operation) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
+            archetype: InterpreterArchetype::Other,
             fallback: InterpreterFallback::Uniform(oper),
         }
+    }
+    fn null() -> Self {
+        // there is no need to identify this as the null interpreter,
+        // because any interpreter whose fallback is `Illegal` can be
+        // regarded as having the null interpreter as its archetype
+        Interpreter::uniform(Operation::Builtin(BuiltinOperation::Illegal))
     }
     fn initial() -> Self {
         Self {
             parent: None,
             dict: initial_dict(),
+            archetype: InterpreterArchetype::Initial,
             fallback: InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop)),
         }
     }
@@ -392,6 +401,7 @@ impl Interpreter {
         Self {
             parent: None,
             dict: HashMap::new(),
+            archetype: InterpreterArchetype::Other, // TODO: add a variant for this
             fallback: InterpreterFallback::Quotesym(original),
         }
     }
@@ -399,6 +409,7 @@ impl Interpreter {
         Self {
             parent: None,
             dict: HashMap::new(),
+            archetype: InterpreterArchetype::Other, // TODO: add a variant for this
             fallback: InterpreterFallback::Deepquote(original),
         }
     }
@@ -419,6 +430,7 @@ impl Interpreter {
             Err(original) => Interpreter {
                 parent: Some(parent),
                 dict: original.dict.clone(),
+                archetype: original.archetype.clone(),
                 fallback: original.fallback.clone(),
             },
         })
@@ -441,25 +453,23 @@ impl Interpreter {
         out.push('(');
         let mut precursor = None;
         // base interpreter
-        match self.fallback {
-            InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal)) => {
-                out.push('0')
-            }
-            // TODO: it's a bug to assume that an interpreter is derived from ^
-            // just because its fallback is nop.
-            InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop)) => {
+        match (&self.archetype, &self.fallback) {
+            (InterpreterArchetype::Initial, _) => {
                 precursor = Some(initial_interpreter);
                 out.push('v');
             }
-            InterpreterFallback::Uniform(ref oper) => {
+            (_, InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal))) => {
+                out.push('0')
+            }
+            (_, InterpreterFallback::Uniform(ref oper)) => {
                 oper.show(out, initial_interpreter);
                 out.push('1');
             }
             // TODO: get good string representations for these interpreters.
             // Given only the currently available instructions, it's
             // impossible to get them on the stack, so it's not that important.
-            InterpreterFallback::Quotesym(_) => out.push_str("<quotesym>"),
-            InterpreterFallback::Deepquote(_) => out.push_str("<deepquote>"),
+            (_, InterpreterFallback::Quotesym(_)) => out.push_str("<quotesym>"),
+            (_, InterpreterFallback::Deepquote(_)) => out.push_str("<deepquote>"),
         }
         for (s, oper) in self.dict.iter() {
             if precursor.map_or(false, |p| p.dict.get(s) == Some(oper)) {
