@@ -4,11 +4,10 @@ use std::io::{self, Read, Write};
 use std::process::exit;
 
 mod interpreter;
-use crate::interpreter::fmt_to_string;
 
 fn print_and_flush(s: &str) -> Result<(), String> {
     print!("{}", s);
-    io::stdout().flush().map_err(fmt_to_string)
+    io::stdout().flush().map_err(|e| e.to_string())
 }
 
 fn read_line(stdin: &io::Stdin, prompt: &str) -> Result<Option<String>, String> {
@@ -17,14 +16,14 @@ fn read_line(stdin: &io::Stdin, prompt: &str) -> Result<Option<String>, String> 
     match stdin.read_line(&mut line) {
         Ok(0) => Ok(None),
         Ok(_) => Ok(Some(line)),
-        Err(e) => Err(fmt_to_string(e))
+        Err(e) => Err(e.to_string())
     }
 }
 
 fn run() -> Result<(), String> {
     let mut files = Vec::new();
     for file_name in env::args().skip(1) {
-        let file: File = File::open(file_name).map_err(fmt_to_string)?;
+        let file: File = File::open(file_name).map_err(|e| e.to_string())?;
         files.push(io::BufReader::new(file));
     }
     if files.is_empty() {
@@ -34,7 +33,7 @@ fn run() -> Result<(), String> {
         let mut state = interpreter::State::new(stdin.lock(), io::stdout());
         for file in files {
             for byte in file.bytes() {
-                state.run_symbol(byte.map_err(fmt_to_string)? as char)?;
+                state.run_symbol(byte.map_err(|e| e.to_string())? as char)?;
             }
         }
         Ok(())

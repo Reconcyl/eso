@@ -1,4 +1,5 @@
 use ::std::collections::HashMap;
+use ::std::ops::Deref;
 use ::std::rc::Rc;
 use ::std::io::{self, Read, Write};
 use ::std::mem;
@@ -56,11 +57,13 @@ pub struct State<'a, R, W> {
 #[derive(Clone)]
 enum Operation<InterpreterPtr> {
     Builtin(BuiltinOperation),
+    Quotesym(Box<(Symbol, InterpreterPtr)>),
     Custom(Rc<CustomOperation<InterpreterPtr>>),
 }
 
 #[derive(Clone, Copy)]
 enum BuiltinOperation {
+    Nop,
     Reify,
     Deify,
     Extract,
@@ -153,10 +156,11 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
         }
     }
     fn initial() -> Self {
+        let nop = operation(Operation::Builtin(BuiltinOperation::Nop));
         Self {
             parent: None,
             dict: initial_dict(),
-            fallback: Rc::new(|_| Some(action(|_| Ok(()))))
+            fallback: Rc::new(move |_| Some(Rc::clone(&nop))),
         }
     }
     fn quote(original: Rc<Interpreter<'a, R, W>>) -> Self {
@@ -165,11 +169,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(action(move |state| {
-                    state.stack.push(Object::Symbol(s));
-                    state.current_interpreter = Rc::clone(&original);
-                    Ok(())
-                }))
+                Some(operation(Operation::Quotesym(Box::new((s, original)))))
             })
         }
     }
@@ -289,6 +289,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     fn run_operation(&mut self, o: &Operation<Rc<Interpreter<'a, R, W>>>) -> Result<(), String> {
         match o {
             Operation::Builtin(o) => match o {
+                BuiltinOperation::Nop => {}
                 BuiltinOperation::Reify => {
                     let current = Rc::clone(&self.current_interpreter);
                     self.stack.push(Object::Interpreter(current));
@@ -394,7 +395,12 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     self.stack.push(a);
                     self.stack.push(b);
                 }
-            },
+            }
+            Operation::Quotesym(b) => {
+                let (c, old_interpreter) = b.deref().clone();
+                self.stack.push(Object::Symbol(c));
+                self.current_interpreter = old_interpreter;
+            }
             Operation::Custom(_) => todo!(),
         }
         Ok(())
