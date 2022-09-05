@@ -83,6 +83,12 @@ where
     Rc::new(closure)
 }
 
+fn operation<'a, R: Read + 'a, W: Write + 'a>(
+    o: Operation<Rc<Interpreter<'a, R, W>>>
+) -> Rc<Action<'a, R, W>> {
+    action(move |state| state.run_operation(&o))
+}
+
 trait ObjectType<'a, R, W>: Sized {
     fn name() -> &'static str;
     fn downcast(_: &Object<'a, R, W>) -> Option<Self>;
@@ -266,6 +272,14 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
             self.stack.push(Object::Symbol(symbol));
         }
         self.stack.push(Object::Symbol(']'));
+    }
+    fn run_operation(&mut self, o: &Operation<Rc<Interpreter<'a, R, W>>>) -> Result<(), String> {
+        match o {
+            Operation::Builtin(o) => match o {
+                BuiltinOperation::Reify => todo!(),
+            },
+            Operation::Custom(_) => todo!(),
+        }
     }
     pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
         self.current_interpreter.get_action(s)?(self)
