@@ -33,7 +33,7 @@ struct Interpreter<'a, R, W> {
     // for a symbol, we also try a fallback function. This is so that interpreters that have a
     // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
     // don't have to fill in every character.
-    fallback: Rc<dyn Fn(Symbol) -> Option<Action<'a, R, W>> + 'a>,
+    fallback: Rc<dyn Fn(Symbol) -> Option<Operation<Rc<Self>>> + 'a>,
 }
 
 impl<'a, R: 'a, W: 'a> Clone for Interpreter<'a, R, W> {
@@ -153,15 +153,14 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: Rc::new(move |_| Some(operation(oper.clone()))),
+            fallback: Rc::new(move |_| Some(oper.clone())),
         }
     }
     fn initial() -> Self {
-        let nop = operation(Operation::Builtin(BuiltinOperation::Nop));
         Self {
             parent: None,
             dict: initial_dict(),
-            fallback: Rc::new(move |_| Some(Rc::clone(&nop))),
+            fallback: Rc::new(|_| Some(Operation::Builtin(BuiltinOperation::Nop))),
         }
     }
     fn quote(original: Rc<Interpreter<'a, R, W>>) -> Self {
@@ -170,7 +169,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(operation(Operation::Quotesym(Box::new((s, original)))))
+                Some(Operation::Quotesym(Box::new((s, original))))
             })
         }
     }
@@ -180,7 +179,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(operation(Operation::Deepquote(Box::new((s, original)))))
+                Some(Operation::Deepquote(Box::new((s, original))))
             })
         }
     }
@@ -209,7 +208,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
     }
     fn get_action(&self, s: Symbol) -> Result<Action<'a, R, W>, String> {
         self.dict.get(&s).map(Rc::clone)
-            .or_else(|| (self.fallback)(s).map(Into::into))
+            .or_else(|| (self.fallback)(s).map(operation))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
     fn set_action(original: Rc<Interpreter<'a, R, W>>,
