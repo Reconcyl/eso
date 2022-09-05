@@ -12,6 +12,7 @@ type Symbol = char;
 enum Object<'a, R, W> {
     Symbol(Symbol),
     Action(Rc<Action<'a, R, W>>),
+    Operation(Operation<Rc<Interpreter<'a, R, W>>>),
     Interpreter(Rc<Interpreter<'a, R, W>>),
 }
 
@@ -22,6 +23,7 @@ impl<'a, R: 'a, W: 'a> Clone for Object<'a, R, W> {
         match self {
             Object::Symbol(s) => Object::Symbol(*s),
             Object::Action(o) => Object::Action(Rc::clone(o)),
+            Object::Operation(o) => Object::Operation(o.clone()),
             Object::Interpreter(i) => Object::Interpreter(Rc::clone(i))
         }
     }
@@ -53,6 +55,22 @@ pub struct State<'a, R, W> {
     input: io::Bytes<R>,
     output: W,
     nesting: u32,
+}
+
+#[derive(Clone)]
+enum Operation<InterpreterPtr> {
+    Builtin(BuiltinOperation),
+    Custom(Rc<CustomOperation<InterpreterPtr>>),
+}
+
+#[derive(Clone, Copy)]
+enum BuiltinOperation {
+    Reify,
+}
+
+struct CustomOperation<InterpreterPtr> {
+    context: InterpreterPtr,
+    definition: String,
 }
 
 type Action<'a, R, W> = dyn Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a;
@@ -89,6 +107,7 @@ macro_rules! gen_object_downcast_impl {
 
 gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
 gen_object_downcast_impl!(Rc<Action<'a, R, W>>, Object::Action, "action");
+gen_object_downcast_impl!(Operation<Rc<Interpreter<'a, R, W>>>, Object::Operation, "operation");
 gen_object_downcast_impl!(Rc<Interpreter<'a, R, W>>, Object::Interpreter, "interpreter");
 
 impl<'a, R: Read + 'a, W: Write + 'a> Object<'a, R, W> {
@@ -96,6 +115,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Object<'a, R, W> {
         match *self {
             Object::Symbol(_) => <Symbol as ObjectType<R, W>>::name(),
             Object::Action(_) => <Rc<Action<R, W>>>::name(),
+            Object::Operation(_) => <Operation<Rc<Interpreter<'a, R, W>>>>::name(),
             Object::Interpreter(_) => <Rc<Interpreter<R, W>>>::name(),
         }
     }
