@@ -159,7 +159,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
     fn initial() -> Self {
         Self {
             parent: None,
-            dict: initial_dict::initial_dict(),
+            dict: initial_dict(),
             fallback: Rc::new(|_| Some(action(|_| Ok(()))))
         }
     }
@@ -420,30 +420,27 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     }
 }
 
-mod initial_dict {
-    use super::*;
-    pub(super) fn initial_dict<'a, R: Read + 'a, W: Write + 'a>()
-        -> HashMap<Symbol, Rc<Action<'a, R, W>>>
-    {
-        let mut map = HashMap::new();
-        map.insert('v', operation(Operation::Builtin(BuiltinOperation::Reify)));
-        map.insert('^', operation(Operation::Builtin(BuiltinOperation::Deify)));
-        map.insert('>', operation(Operation::Builtin(BuiltinOperation::Extract)));
-        map.insert('<', operation(Operation::Builtin(BuiltinOperation::Install)));
-        map.insert('{', operation(Operation::Builtin(BuiltinOperation::GetParent)));
-        map.insert('}', operation(Operation::Builtin(BuiltinOperation::SetParent)));
-        map.insert('*', operation(Operation::Builtin(BuiltinOperation::Create)));
-        map.insert('@', operation(Operation::Builtin(BuiltinOperation::Expand)));
-        map.insert('!', operation(Operation::Builtin(BuiltinOperation::Perform)));
-        map.insert('0', operation(Operation::Builtin(BuiltinOperation::Null)));
-        map.insert('1', operation(Operation::Builtin(BuiltinOperation::Uniform)));
-        map.insert('[', operation(Operation::Builtin(BuiltinOperation::Deepquote)));
-        map.insert('\'', operation(Operation::Builtin(BuiltinOperation::Quotesym)));
-        map.insert('.', operation(Operation::Builtin(BuiltinOperation::Output)));
-        map.insert(',', operation(Operation::Builtin(BuiltinOperation::Input)));
-        map.insert(':', operation(Operation::Builtin(BuiltinOperation::Dup)));
-        map.insert('$', operation(Operation::Builtin(BuiltinOperation::Pop)));
-        map.insert('/', operation(Operation::Builtin(BuiltinOperation::Swap)));
-        map
-    }
+fn initial_dict<'a, R: Read + 'a, W: Write + 'a>() -> HashMap<Symbol, Rc<Action<'a, R, W>>> {
+    [
+        ('v',  BuiltinOperation::Reify),
+        ('^',  BuiltinOperation::Deify),
+        ('>',  BuiltinOperation::Extract),
+        ('<',  BuiltinOperation::Install),
+        ('{',  BuiltinOperation::GetParent),
+        ('}',  BuiltinOperation::SetParent),
+        ('*',  BuiltinOperation::Create),
+        ('@',  BuiltinOperation::Expand),
+        ('!',  BuiltinOperation::Perform),
+        ('0',  BuiltinOperation::Null),
+        ('1',  BuiltinOperation::Uniform),
+        ('[',  BuiltinOperation::Deepquote),
+        ('\'', BuiltinOperation::Quotesym),
+        ('.',  BuiltinOperation::Output),
+        (',',  BuiltinOperation::Input),
+        (':',  BuiltinOperation::Dup),
+        ('$',  BuiltinOperation::Pop),
+        ('/',  BuiltinOperation::Swap),
+    ]
+    .map(|(c, op)| (c, operation(Operation::Builtin(op))))
+    .into()
 }
