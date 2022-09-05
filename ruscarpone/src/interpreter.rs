@@ -24,11 +24,19 @@ enum Object {
 struct Interpreter {
     parent: Option<Rc<Self>>,
     dict: HashMap<Symbol, Operation>,
-    // In the case that the character dictionary of an interpreter does not contain a definition
-    // for a symbol, we also try a fallback function. This is so that interpreters that have a
-    // definition for every character (such as the interpreter pushed by `1` or enabled by `'`
-    // don't have to fill in every character.
-    fallback: Rc<dyn Fn(Symbol) -> Option<Operation> + 'static>,
+    fallback: InterpreterFallback,
+}
+
+// In the case that the character dictionary of an interpreter does not contain a definition
+// for a symbol, we also describe fallback behavior. This is so that interpreters that have a
+// definition for every character (such as the interpreter pushed by `1` or enabled by `'`
+// don't have to fill in every character.
+#[derive(Clone)]
+enum InterpreterFallback {
+    None,
+    Uniform(Operation),
+    Quotesym(Rc<Interpreter>),
+    Deepquote(Rc<Interpreter>),
 }
 
 #[derive(Clone)]
@@ -317,41 +325,35 @@ impl Interpreter {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: Rc::new(|_| None),
+            fallback: InterpreterFallback::None,
         }
     }
     fn uniform(oper: Operation) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: Rc::new(move |_| Some(oper.clone())),
+            fallback: InterpreterFallback::Uniform(oper),
         }
     }
     fn initial() -> Self {
         Self {
             parent: None,
             dict: initial_dict(),
-            fallback: Rc::new(|_| Some(Operation::Builtin(BuiltinOperation::Nop))),
+            fallback: InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop)),
         }
     }
     fn quote(original: Rc<Self>) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: Rc::new(move |s| {
-                let original = Rc::clone(&original);
-                Some(Operation::Quotesym(s, original))
-            }),
+            fallback: InterpreterFallback::Quotesym(original),
         }
     }
     fn deep_quote(original: Rc<Self>) -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
-            fallback: Rc::new(move |s| {
-                let original = Rc::clone(&original);
-                Some(Operation::Deepquote(s, original))
-            }),
+            fallback: InterpreterFallback::Deepquote(original),
         }
     }
     fn get_parent(&self) -> Rc<Self> {
@@ -371,7 +373,7 @@ impl Interpreter {
             Err(original) => Interpreter {
                 parent: Some(parent),
                 dict: original.dict.clone(),
-                fallback: Rc::clone(&original.fallback),
+                fallback: original.fallback.clone(),
             },
         })
     }
@@ -379,7 +381,7 @@ impl Interpreter {
         self.dict
             .get(&s)
             .cloned()
-            .or_else(|| (self.fallback)(s))
+            .or_else(|| self.fallback.get_operation(s))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
     fn set_action(original: Rc<Self>, s: Symbol, oper: Operation) -> Rc<Self> {
@@ -389,6 +391,21 @@ impl Interpreter {
         };
         new_interpreter.dict.insert(s, oper);
         Rc::new(new_interpreter)
+    }
+}
+
+impl InterpreterFallback {
+    fn get_operation(&self, s: Symbol) -> Option<Operation> {
+        match self {
+            InterpreterFallback::None => None,
+            InterpreterFallback::Uniform(oper) => Some(oper.clone()),
+            InterpreterFallback::Quotesym(original) => {
+                Some(Operation::Quotesym(s, Rc::clone(original)))
+            }
+            InterpreterFallback::Deepquote(original) => {
+                Some(Operation::Deepquote(s, Rc::clone(original)))
+            }
+        }
     }
 }
 
