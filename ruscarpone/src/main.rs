@@ -16,7 +16,7 @@ fn read_line(stdin: &io::Stdin, prompt: &str) -> Result<Option<String>, String> 
     match stdin.read_line(&mut line) {
         Ok(0) => Ok(None),
         Ok(_) => Ok(Some(line)),
-        Err(e) => Err(e.to_string())
+        Err(e) => Err(e.to_string()),
     }
 }
 

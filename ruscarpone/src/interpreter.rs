@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::rc::Rc;
 use std::io::{self, Read, Write};
 use std::mem;
+use std::ops::Deref;
+use std::rc::Rc;
 
 pub struct State<R, W> {
     current_interpreter: Rc<Interpreter>,
@@ -82,24 +82,31 @@ impl<R: Read, W: Write> State<R, W> {
         self.stack.pop()
     }
     fn pop_any(&mut self) -> Result<Object, String> {
-        self.pop().ok_or("Tried to pop from empty stack".to_string())
+        self.pop()
+            .ok_or("Tried to pop from empty stack".to_string())
     }
     fn pop_as<T: ObjectType>(&mut self) -> Result<T, String> {
-        let element = self.pop()
+        let element = self
+            .pop()
             .ok_or(format!("Tried to pop {} from empty stack", T::name()))?;
-        T::downcast(&element)
-            .ok_or(format!("Tried to pop {}, got {}", T::name(), element.name()))
+        T::downcast(&element).ok_or(format!(
+            "Tried to pop {}, got {}",
+            T::name(),
+            element.name()
+        ))
     }
     fn pop_string(&mut self) -> Result<String, String> {
         match self.stack.last() {
             None => return Err("Tried to pop string from empty stack".into()),
-            Some(Object::Symbol(c)) =>
+            Some(Object::Symbol(c)) => {
                 if *c != ']' {
                     return Err(format!(
-                        "Expected symbol ']' at end of string, got symbol '{}'", c));
+                        "Expected symbol ']' at end of string, got symbol '{}'",
+                        c
+                    ));
                 }
-            Some(o) =>
-                return Err(format!("Expected string, got {}", o.name()))
+            }
+            Some(o) => return Err(format!("Expected string, got {}", o.name())),
         }
         // scan the stack backwards to find the matching `[`
         let string_end = self.stack.len() - 1;
@@ -114,8 +121,12 @@ impl<R: Read, W: Write> State<R, W> {
                 Object::Symbol(']') => nesting += 1,
                 Object::Symbol('[') => nesting -= 1,
                 Object::Symbol(_) => {}
-                o => return Err(
-                    format!("Expected symbol while popping string, got {}", o.name())),
+                o => {
+                    return Err(format!(
+                        "Expected symbol while popping string, got {}",
+                        o.name()
+                    ))
+                }
             }
             if nesting == 0 {
                 break;
@@ -127,7 +138,7 @@ impl<R: Read, W: Write> State<R, W> {
             .iter()
             .map(|o| match o {
                 Object::Symbol(c) => c,
-                _ => unreachable!()
+                _ => unreachable!(),
             })
             .collect();
         self.stack.truncate(idx);
@@ -161,11 +172,7 @@ impl<R: Read, W: Write> State<R, W> {
                     let symbol = self.pop_as()?;
                     let oper = self.pop_as()?;
                     let interpreter = self.pop_as()?;
-                    let new_interpreter = Interpreter::set_action(
-                        interpreter,
-                        symbol,
-                        oper
-                    );
+                    let new_interpreter = Interpreter::set_action(interpreter, symbol, oper);
                     self.stack.push(Object::Interpreter(new_interpreter));
                 }
                 BuiltinOperation::GetParent => {
@@ -182,8 +189,12 @@ impl<R: Read, W: Write> State<R, W> {
                 BuiltinOperation::Create => {
                     let context = self.pop_as()?;
                     let definition = self.pop_string()?;
-                    let custom = Rc::new(CustomOperation { context, definition });
-                    self.stack.push(Object::Operation(Operation::Custom(custom)));
+                    let custom = Rc::new(CustomOperation {
+                        context,
+                        definition,
+                    });
+                    self.stack
+                        .push(Object::Operation(Operation::Custom(custom)));
                 }
                 // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
                 // possible.
@@ -198,7 +209,8 @@ impl<R: Read, W: Write> State<R, W> {
                     self.run_operation(&oper)?;
                 }
                 BuiltinOperation::Null => {
-                    self.stack.push(Object::Interpreter(Rc::new(Interpreter::null())));
+                    self.stack
+                        .push(Object::Interpreter(Rc::new(Interpreter::null())));
                 }
                 BuiltinOperation::Uniform => {
                     let action = self.pop_as()?;
@@ -208,27 +220,25 @@ impl<R: Read, W: Write> State<R, W> {
                 BuiltinOperation::Deepquote => {
                     self.nesting = 1;
                     self.stack.push(Object::Symbol('['));
-                    self.current_interpreter = Rc::new(
-                        Interpreter::deep_quote(Rc::clone(
-                            &self.current_interpreter)));
+                    self.current_interpreter = Rc::new(Interpreter::deep_quote(Rc::clone(
+                        &self.current_interpreter,
+                    )));
                 }
                 BuiltinOperation::Quotesym => {
-                    self.current_interpreter = Rc::new(
-                        Interpreter::quote(Rc::clone(
-                            &self.current_interpreter)));
+                    self.current_interpreter =
+                        Rc::new(Interpreter::quote(Rc::clone(&self.current_interpreter)));
                 }
                 BuiltinOperation::Output => {
                     let symbol = self.pop_as()?;
                     self.write_symbol(symbol)?;
                 }
-                BuiltinOperation::Input =>
-                    match self.input.next() {
-                        None => return Err(String::from("End of input")),
-                        Some(Err(e)) => return Err(e.to_string()),
-                        Some(Ok(byte)) => {
-                            self.stack.push(Object::Symbol(byte as char));
-                        }
+                BuiltinOperation::Input => match self.input.next() {
+                    None => return Err(String::from("End of input")),
+                    Some(Err(e)) => return Err(e.to_string()),
+                    Some(Ok(byte)) => {
+                        self.stack.push(Object::Symbol(byte as char));
                     }
+                },
                 BuiltinOperation::Dup => {
                     let e = self.pop_any()?;
                     self.stack.push(e.clone());
@@ -243,7 +253,7 @@ impl<R: Read, W: Write> State<R, W> {
                     self.stack.push(a);
                     self.stack.push(b);
                 }
-            }
+            },
             Operation::Quotesym(b) => {
                 let (s, old_interpreter) = b.deref().clone();
                 self.stack.push(Object::Symbol(s));
@@ -262,9 +272,8 @@ impl<R: Read, W: Write> State<R, W> {
                 }
             }
             Operation::Custom(custom) => {
-                let old_interpreter = mem::replace(
-                    &mut self.current_interpreter,
-                    Rc::clone(&custom.context));
+                let old_interpreter =
+                    mem::replace(&mut self.current_interpreter, Rc::clone(&custom.context));
                 self.run(custom.definition.chars())?;
                 self.current_interpreter = old_interpreter;
             }
@@ -275,7 +284,7 @@ impl<R: Read, W: Write> State<R, W> {
         let oper = self.current_interpreter.get_action(s)?;
         self.run_operation(&oper)
     }
-    pub fn run<I: IntoIterator<Item=Symbol>>(&mut self, symbols: I) -> Result<(), String> {
+    pub fn run<I: IntoIterator<Item = Symbol>>(&mut self, symbols: I) -> Result<(), String> {
         for s in symbols.into_iter() {
             self.run_symbol(s)?;
         }
@@ -284,31 +293,31 @@ impl<R: Read, W: Write> State<R, W> {
     fn write_symbol(&mut self, symbol: Symbol) -> Result<(), String> {
         match self.output.write(&symbol.to_string().as_bytes()) {
             Ok(_size) => Ok(()),
-            Err(e) => Err(e.to_string())
+            Err(e) => Err(e.to_string()),
         }
     }
 }
 
 fn initial_dict() -> HashMap<Symbol, Operation> {
     [
-        ('v',  BuiltinOperation::Reify),
-        ('^',  BuiltinOperation::Deify),
-        ('>',  BuiltinOperation::Extract),
-        ('<',  BuiltinOperation::Install),
-        ('{',  BuiltinOperation::GetParent),
-        ('}',  BuiltinOperation::SetParent),
-        ('*',  BuiltinOperation::Create),
-        ('@',  BuiltinOperation::Expand),
-        ('!',  BuiltinOperation::Perform),
-        ('0',  BuiltinOperation::Null),
-        ('1',  BuiltinOperation::Uniform),
-        ('[',  BuiltinOperation::Deepquote),
+        ('v', BuiltinOperation::Reify),
+        ('^', BuiltinOperation::Deify),
+        ('>', BuiltinOperation::Extract),
+        ('<', BuiltinOperation::Install),
+        ('{', BuiltinOperation::GetParent),
+        ('}', BuiltinOperation::SetParent),
+        ('*', BuiltinOperation::Create),
+        ('@', BuiltinOperation::Expand),
+        ('!', BuiltinOperation::Perform),
+        ('0', BuiltinOperation::Null),
+        ('1', BuiltinOperation::Uniform),
+        ('[', BuiltinOperation::Deepquote),
         ('\'', BuiltinOperation::Quotesym),
-        ('.',  BuiltinOperation::Output),
-        (',',  BuiltinOperation::Input),
-        (':',  BuiltinOperation::Dup),
-        ('$',  BuiltinOperation::Pop),
-        ('/',  BuiltinOperation::Swap),
+        ('.', BuiltinOperation::Output),
+        (',', BuiltinOperation::Input),
+        (':', BuiltinOperation::Dup),
+        ('$', BuiltinOperation::Pop),
+        ('/', BuiltinOperation::Swap),
     ]
     .map(|(c, op)| (c, Operation::Builtin(op)))
     .into()
@@ -343,7 +352,7 @@ impl Interpreter {
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
                 Some(Operation::Quotesym(Box::new((s, original))))
-            })
+            }),
         }
     }
     fn deep_quote(original: Rc<Self>) -> Self {
@@ -353,11 +362,12 @@ impl Interpreter {
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
                 Some(Operation::Deepquote(Box::new((s, original))))
-            })
+            }),
         }
     }
     fn get_parent(&self) -> Rc<Self> {
-        self.parent.as_ref()
+        self.parent
+            .as_ref()
             .map(Rc::clone)
             .unwrap_or_else(|| Rc::new(Interpreter::null()))
     }
@@ -369,17 +379,17 @@ impl Interpreter {
                 i.parent = Some(parent);
                 i
             }
-            Err(original) => {
-                Interpreter {
-                    parent: Some(parent),
-                    dict: original.dict.clone(),
-                    fallback: Rc::clone(&original.fallback)
-                }
-            }
+            Err(original) => Interpreter {
+                parent: Some(parent),
+                dict: original.dict.clone(),
+                fallback: Rc::clone(&original.fallback),
+            },
         })
     }
     fn get_action(&self, s: Symbol) -> Result<Operation, String> {
-        self.dict.get(&s).cloned()
+        self.dict
+            .get(&s)
+            .cloned()
             .or_else(|| (self.fallback)(s))
             .ok_or_else(|| format!("Interpreter has no definition for {}", s))
     }
@@ -401,7 +411,9 @@ trait ObjectType: Sized {
 macro_rules! gen_object_downcast_impl {
     ($type:ty, $tag:path, $name:expr) => {
         impl ObjectType for $type {
-            fn name() -> &'static str { $name }
+            fn name() -> &'static str {
+                $name
+            }
             fn downcast(obj: &Object) -> Option<Self> {
                 match *obj {
                     $tag(ref a) => Some(a.clone()),
@@ -409,7 +421,7 @@ macro_rules! gen_object_downcast_impl {
                 }
             }
         }
-    }
+    };
 }
 
 gen_object_downcast_impl!(Symbol, Object::Symbol, "symbol");
