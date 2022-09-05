@@ -75,15 +75,12 @@ struct CustomOperation<InterpreterPtr> {
 
 type Action<'a, R, W> = dyn Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a;
 
-// Constucton an `Rc<Action>` out of a closure. For reasons I don't entirely understand, one can't
-// construct an `Rc<Action>` with just `Rc::new`. We need to first create a `Box<Action>` and then
-// convert the box into an `Rc`.
-macro_rules! action {
-    ($closure:expr) => {{
-        // Dummy function. For some reason this trick only works behind a function call.
-        let foo = || -> Box<Action<'a, R, W>> { Box::new($closure) };
-        foo().into()
-    }}
+// Constucton an `Rc<Action>` out of a closure.
+fn action<'a, R, W, F>(closure: F) -> Rc<Action<'a, R, W>>
+where
+    F: Fn(&mut State<'a, R, W>) -> Result<(), String> + 'a,
+{
+    Rc::new(closure)
 }
 
 trait ObjectType<'a, R, W>: Sized {
@@ -140,7 +137,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
         Self {
             parent: None,
             dict: initial_dict::initial_dict(),
-            fallback: Rc::new(|_| Some(action!(|_| Ok(()))))
+            fallback: Rc::new(|_| Some(action(|_| Ok(()))))
         }
     }
     fn quote(original: Rc<Interpreter<'a, R, W>>) -> Self {
@@ -149,7 +146,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(action!(move |state| {
+                Some(action(move |state| {
                     state.stack.push(Object::Symbol(s));
                     state.current_interpreter = Rc::clone(&original);
                     Ok(())
@@ -163,7 +160,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> Interpreter<'a, R, W> {
             dict: HashMap::new(),
             fallback: Rc::new(move |s| {
                 let original = Rc::clone(&original);
-                Some(action!(move |state| {
+                Some(action(move |state| {
                     state.stack.push(Object::Symbol(s));
                     if s == ']' {
                         state.nesting -= 1;
@@ -293,23 +290,23 @@ mod initial_dict {
         -> HashMap<Symbol, Rc<Action<'a, R, W>>>
     {
         let mut map = HashMap::new();
-        map.insert('v', action!(|state| {
+        map.insert('v', action(|state| {
             let current = Rc::clone(&state.current_interpreter);
             state.stack.push(Object::Interpreter(current));
             Ok(())
         }));
-        map.insert('^', action!(|state| {
+        map.insert('^', action(|state| {
             state.current_interpreter = Rc::clone(&state.pop_as()?);
             Ok(())
         }));
-        map.insert('>', action!(|state| {
+        map.insert('>', action(|state| {
             let symbol = state.pop_as()?;
             let interpreter: Rc<Interpreter<_, _>> = state.pop_as()?;
             let action = interpreter.get_action(symbol)?;
             state.stack.push(Object::Action(action));
             Ok(())
         }));
-        map.insert('<', action!(|state| {
+        map.insert('<', action(|state| {
             let symbol = state.pop_as()?;
             let operation = state.pop_as()?;
             let interpreter = state.pop_as()?;
@@ -321,23 +318,23 @@ mod initial_dict {
             state.stack.push(Object::Interpreter(new_interpreter));
             Ok(())
         }));
-        map.insert('{', action!(|state| {
+        map.insert('{', action(|state| {
             let old_interpreter: Rc<Interpreter<_, _>> = state.pop_as()?;
             let parent = old_interpreter.get_parent();
             state.stack.push(Object::Interpreter(parent));
             Ok(())
         }));
-        map.insert('}', action!(|state| {
+        map.insert('}', action(|state| {
             let i = state.pop_as()?;
             let j = state.pop_as()?;
             let new = Interpreter::set_parent(i, j);
             state.stack.push(Object::Interpreter(new));
             Ok(())
         }));
-        map.insert('*', action!(|state| {
+        map.insert('*', action(|state| {
             let interpreter: Rc<Interpreter<R, W>> = state.pop_as()?;
             let string = state.pop_string()?;
-            state.stack.push(Object::Action(action!(move |state| {
+            state.stack.push(Object::Action(action(move |state| {
                 let old_interpreter = mem::replace(
                     &mut state.current_interpreter,
                     Rc::clone(&interpreter));
@@ -349,28 +346,28 @@ mod initial_dict {
         }));
         // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
         // possible.
-        map.insert('@', action!(|state| {
+        map.insert('@', action(|state| {
             let action = state.pop_as()?;
             state.push_string("@");
             let interpreter = Interpreter::uniform(action);
             state.stack.push(Object::Interpreter(Rc::new(interpreter)));
             Ok(())
         }));
-        map.insert('!', action!(|state| {
+        map.insert('!', action(|state| {
             let action: Rc<Action<_, _>> = state.pop_as()?;
             action(state)
         }));
-        map.insert('0', action!(|state| {
+        map.insert('0', action(|state| {
             state.stack.push(Object::Interpreter(Rc::new(Interpreter::null())));
             Ok(())
         }));
-        map.insert('1', action!(|state| {
+        map.insert('1', action(|state| {
             let action = state.pop_as()?;
             let interpreter = Interpreter::uniform(action);
             state.stack.push(Object::Interpreter(Rc::new(interpreter)));
             Ok(())
         }));
-        map.insert('[', action!(|state| {
+        map.insert('[', action(|state| {
             state.nesting = 1;
             state.stack.push(Object::Symbol('['));
             state.current_interpreter = Rc::new(
@@ -378,17 +375,17 @@ mod initial_dict {
                     &state.current_interpreter)));
             Ok(())
         }));
-        map.insert('\'', action!(|state| {
+        map.insert('\'', action(|state| {
             state.current_interpreter = Rc::new(
                 Interpreter::quote(Rc::clone(
                     &state.current_interpreter)));
             Ok(())
         }));
-        map.insert('.', action!(|state| {
+        map.insert('.', action(|state| {
             let symbol = state.pop_as()?;
             state.write_symbol(symbol)
         }));
-        map.insert(',', action!(|state| {
+        map.insert(',', action(|state| {
             match state.input.next() {
                 None => Err(String::from("End of input")),
                 Some(Err(e)) => Err(format!("{}", e)),
@@ -398,16 +395,16 @@ mod initial_dict {
                 }
             }
         }));
-        map.insert(':', action!(|state| {
+        map.insert(':', action(|state| {
             let e = state.pop_any()?;
             state.stack.push(e.clone());
             state.stack.push(e);
             Ok(())
         }));
-        map.insert('$', action!(|state| {
+        map.insert('$', action(|state| {
             state.pop_any().map(|_| ())
         }));
-        map.insert('/', action!(|state| {
+        map.insert('/', action(|state| {
             let a = state.pop_any()?;
             let b = state.pop_any()?;
             state.stack.push(a);
