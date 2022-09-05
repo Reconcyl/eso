@@ -222,7 +222,7 @@ impl<R: Read, W: Write> State<R, W> {
                 BuiltinOperation::SetParent => {
                     let i = self.pop()?;
                     let j = self.pop()?;
-                    self.push(Interpreter::set_parent(i, j));
+                    self.push(Interpreter::set_parent(i, j, &self.named_interpreters));
                 }
                 BuiltinOperation::Create => {
                     let context: Rc<Interpreter> = self.pop()?;
@@ -426,7 +426,10 @@ impl Interpreter {
     fn get_parent<'a>(&'a self, ctx: &'a InterpretersCtx) -> &'a Rc<Self> {
         self.parent.as_ref().unwrap_or_else(|| &ctx.null)
     }
-    fn set_parent(original: Rc<Self>, parent: Rc<Self>) -> Rc<Self> {
+    fn set_parent(original: Rc<Self>, parent: Rc<Self>, ctx: &InterpretersCtx) -> Rc<Self> {
+        if Rc::ptr_eq(original.get_parent(ctx), &parent) {
+            return original;
+        }
         // Modify the interpreter in-place if possible; otherwise, clone its
         // character dictionary and fallback functions and make a new one.
         Rc::new(match Rc::try_unwrap(original) {
