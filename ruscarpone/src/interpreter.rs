@@ -232,13 +232,10 @@ impl<R: Read, W: Write> State<R, W> {
                     let symbol = self.pop_as()?;
                     self.write_symbol(symbol)?;
                 }
-                BuiltinOperation::Input => match self.input.next() {
-                    None => return Err(String::from("End of input")),
-                    Some(Err(e)) => return Err(e.to_string()),
-                    Some(Ok(byte)) => {
-                        self.stack.push(Object::Symbol(byte as char));
-                    }
-                },
+                BuiltinOperation::Input => {
+                    let symbol = self.read_symbol()?;
+                    self.stack.push(Object::Symbol(symbol))
+                }
                 BuiltinOperation::Dup => {
                     let e = self.pop_any()?;
                     self.stack.push(e.clone());
@@ -294,6 +291,13 @@ impl<R: Read, W: Write> State<R, W> {
         match self.output.write(&symbol.to_string().as_bytes()) {
             Ok(_size) => Ok(()),
             Err(e) => Err(e.to_string()),
+        }
+    }
+    fn read_symbol(&mut self) -> Result<Symbol, String> {
+        match self.input.next() {
+            None => return Err(String::from("End of input")),
+            Some(Err(e)) => return Err(e.to_string()),
+            Some(Ok(byte)) => Ok(byte as char),
         }
     }
 }
