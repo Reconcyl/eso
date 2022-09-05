@@ -71,6 +71,7 @@ enum BuiltinOperation {
     Install,
     GetParent,
     SetParent,
+    Create,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -316,6 +317,18 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     let new = Interpreter::set_parent(i, j);
                     self.stack.push(Object::Interpreter(new));
                 }
+                BuiltinOperation::Create => {
+                    let interpreter: Rc<Interpreter<R, W>> = self.pop_as()?;
+                    let string = self.pop_string()?;
+                    self.stack.push(Object::Action(action(move |state| {
+                        let old_interpreter = mem::replace(
+                            &mut state.current_interpreter,
+                            Rc::clone(&interpreter));
+                        state.run(string.clone())?;
+                        state.current_interpreter = old_interpreter;
+                        Ok(())
+                    })));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -350,19 +363,7 @@ mod initial_dict {
         map.insert('<', operation(Operation::Builtin(BuiltinOperation::Install)));
         map.insert('{', operation(Operation::Builtin(BuiltinOperation::GetParent)));
         map.insert('}', operation(Operation::Builtin(BuiltinOperation::SetParent)));
-        map.insert('*', action(|state| {
-            let interpreter: Rc<Interpreter<R, W>> = state.pop_as()?;
-            let string = state.pop_string()?;
-            state.stack.push(Object::Action(action(move |state| {
-                let old_interpreter = mem::replace(
-                    &mut state.current_interpreter,
-                    Rc::clone(&interpreter));
-                state.run(string.clone())?;
-                state.current_interpreter = old_interpreter;
-                Ok(())
-            })));
-            Ok(())
-        }));
+        map.insert('*', operation(Operation::Builtin(BuiltinOperation::Create)));
         // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
         // possible.
         map.insert('@', action(|state| {
