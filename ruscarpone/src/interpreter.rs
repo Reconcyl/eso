@@ -87,14 +87,14 @@ impl<R: Read, W: Write> State<R, W> {
     fn pop_any(&mut self) -> Result<Object, String> {
         self.stack
             .pop()
-            .ok_or("Tried to pop from empty stack".to_string())
+            .ok_or_else(|| "Tried to pop from empty stack".to_owned())
     }
     fn pop<T: ObjectType>(&mut self) -> Result<T, String> {
         let element = self
             .stack
             .pop()
-            .ok_or(format!("Tried to pop {} from empty stack", T::name()))?;
-        T::downcast(&element).ok_or(format!(
+            .ok_or_else(|| format!("Tried to pop {} from empty stack", T::name()))?;
+        T::downcast(&element).ok_or_else(|| format!(
             "Tried to pop {}, got {}",
             T::name(),
             element.name()
@@ -102,7 +102,7 @@ impl<R: Read, W: Write> State<R, W> {
     }
     fn pop_string(&mut self) -> Result<String, String> {
         match self.stack.last() {
-            None => return Err("Tried to pop string from empty stack".into()),
+            None => return Err("Tried to pop string from empty stack".to_owned()),
             Some(Object::Symbol(c)) => {
                 if *c != ']' {
                     return Err(format!(
