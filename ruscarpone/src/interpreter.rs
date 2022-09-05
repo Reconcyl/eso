@@ -75,6 +75,7 @@ enum BuiltinOperation {
     Expand,
     Perform,
     Null,
+    Uniform,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -347,6 +348,11 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 BuiltinOperation::Null => {
                     self.stack.push(Object::Interpreter(Rc::new(Interpreter::null())));
                 }
+                BuiltinOperation::Uniform => {
+                    let action = self.pop_as()?;
+                    let interpreter = Interpreter::uniform(action);
+                    self.stack.push(Object::Interpreter(Rc::new(interpreter)));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -385,12 +391,7 @@ mod initial_dict {
         map.insert('@', operation(Operation::Builtin(BuiltinOperation::Expand)));
         map.insert('!', operation(Operation::Builtin(BuiltinOperation::Perform)));
         map.insert('0', operation(Operation::Builtin(BuiltinOperation::Null)));
-        map.insert('1', action(|state| {
-            let action = state.pop_as()?;
-            let interpreter = Interpreter::uniform(action);
-            state.stack.push(Object::Interpreter(Rc::new(interpreter)));
-            Ok(())
-        }));
+        map.insert('1', operation(Operation::Builtin(BuiltinOperation::Uniform)));
         map.insert('[', action(|state| {
             state.nesting = 1;
             state.stack.push(Object::Symbol('['));
