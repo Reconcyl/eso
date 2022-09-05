@@ -69,6 +69,7 @@ enum BuiltinOperation {
     Deify,
     Extract,
     Install,
+    GetParent,
 }
 
 struct CustomOperation<InterpreterPtr> {
@@ -303,6 +304,11 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                     );
                     self.stack.push(Object::Interpreter(new_interpreter));
                 }
+                BuiltinOperation::GetParent => {
+                    let old_interpreter: Rc<Interpreter<_, _>> = self.pop_as()?;
+                    let parent = old_interpreter.get_parent();
+                    self.stack.push(Object::Interpreter(parent));
+                }
             },
             Operation::Custom(_) => todo!(),
         }
@@ -335,12 +341,7 @@ mod initial_dict {
         map.insert('^', operation(Operation::Builtin(BuiltinOperation::Deify)));
         map.insert('>', operation(Operation::Builtin(BuiltinOperation::Extract)));
         map.insert('<', operation(Operation::Builtin(BuiltinOperation::Install)));
-        map.insert('{', action(|state| {
-            let old_interpreter: Rc<Interpreter<_, _>> = state.pop_as()?;
-            let parent = old_interpreter.get_parent();
-            state.stack.push(Object::Interpreter(parent));
-            Ok(())
-        }));
+        map.insert('{', operation(Operation::Builtin(BuiltinOperation::GetParent)));
         map.insert('}', action(|state| {
             let i = state.pop_as()?;
             let j = state.pop_as()?;
