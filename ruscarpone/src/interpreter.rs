@@ -1,8 +1,8 @@
-use ::std::collections::HashMap;
-use ::std::ops::Deref;
-use ::std::rc::Rc;
-use ::std::io::{self, Read, Write};
-use ::std::mem;
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::io::{self, Read, Write};
+use std::mem;
 
 type Symbol = char;
 
