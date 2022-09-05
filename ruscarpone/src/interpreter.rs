@@ -3,10 +3,6 @@ use ::std::rc::Rc;
 use ::std::io::{self, Read, Write};
 use ::std::mem;
 
-pub fn fmt_to_string<T: ::std::fmt::Display>(t: T) -> String {
-    format!("{}", t)
-}
-
 type Symbol = char;
 
 enum Object<'a, R, W> {
@@ -379,7 +375,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
                 BuiltinOperation::Input =>
                     match self.input.next() {
                         None => return Err(String::from("End of input")),
-                        Some(Err(e)) => return Err(format!("{}", e)),
+                        Some(Err(e)) => return Err(e.to_string()),
                         Some(Ok(byte)) => {
                             self.stack.push(Object::Symbol(byte as char));
                         }
@@ -415,7 +411,7 @@ impl<'a, R: Read + 'a, W: Write + 'a> State<'a, R, W> {
     fn write_symbol(&mut self, symbol: Symbol) -> Result<(), String> {
         match self.output.write(&symbol.to_string().as_bytes()) {
             Ok(_size) => Ok(()),
-            Err(e) => Err(fmt_to_string(e))
+            Err(e) => Err(e.to_string())
         }
     }
 }
