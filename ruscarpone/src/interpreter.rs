@@ -429,7 +429,7 @@ mod initial_dict {
         map.insert('[', operation(Operation::Builtin(BuiltinOperation::Deepquote)));
         map.insert('\'', operation(Operation::Builtin(BuiltinOperation::Quotesym)));
         map.insert('.', operation(Operation::Builtin(BuiltinOperation::Output)));
-        map.insert('.', operation(Operation::Builtin(BuiltinOperation::Input)));
+        map.insert(',', operation(Operation::Builtin(BuiltinOperation::Input)));
         map.insert(':', operation(Operation::Builtin(BuiltinOperation::Dup)));
         map.insert('$', action(|state| {
             state.pop_any().map(|_| ())
