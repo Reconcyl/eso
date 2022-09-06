@@ -47,14 +47,14 @@ enum InterpreterArchetype {
 #[derive(Clone)]
 enum InterpreterFallback {
     Uniform(Operation),
-    Quotesym(Rc<Interpreter>),
+    Quotesym,
     Deepquote(Rc<Interpreter>),
 }
 
 #[derive(Clone)]
 enum Operation {
     Builtin(BuiltinOperation),
-    Quotesym(Symbol, Rc<Interpreter>),
+    Quotesym(Symbol),
     Deepquote(Symbol, Rc<Interpreter>),
     Custom(Rc<CustomOperation>),
 }
@@ -63,9 +63,7 @@ impl PartialEq for Operation {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Operation::Builtin(b1), Operation::Builtin(b2)) => b1 == b2,
-            (Operation::Quotesym(s1, i1), Operation::Quotesym(s2, i2)) => {
-                s1 == s2 && Rc::ptr_eq(i1, i2)
-            }
+            (Operation::Quotesym(s1), Operation::Quotesym(s2)) => s1 == s2,
             (Operation::Deepquote(s1, i1), Operation::Deepquote(s2, i2)) => {
                 s1 == s2 && Rc::ptr_eq(i1, i2)
             }
@@ -307,9 +305,9 @@ impl<R: Read, W: Write> State<R, W> {
                     return Err("Illegal operation performed".to_owned());
                 }
             },
-            Operation::Quotesym(s, old_interpreter) => {
+            Operation::Quotesym(s) => {
                 self.push(s);
-                self.current_interpreter = old_interpreter;
+                self.backup_interpreter();
             }
             Operation::Deepquote(s, old_interpreter) => {
                 self.push(s);
@@ -426,10 +424,10 @@ impl Interpreter {
     }
     fn quote(original: Rc<Self>) -> Self {
         Self {
-            parent: None,
+            parent: Some(original),
             dict: HashMap::new(),
-            archetype: InterpreterArchetype::Other, // TODO: add a variant for this
-            fallback: InterpreterFallback::Quotesym(original),
+            archetype: InterpreterArchetype::Other,
+            fallback: InterpreterFallback::Quotesym,
         }
     }
     fn deep_quote(original: Rc<Self>) -> Self {
@@ -514,7 +512,7 @@ impl Interpreter {
             // TODO: get good string representations for these interpreters.
             // Given only the currently available instructions, it's
             // impossible to get them on the stack, so it's not that important.
-            (_, InterpreterFallback::Quotesym(_)) => out.push_str("<quotesym>"),
+            (_, InterpreterFallback::Quotesym) => out.push_str("<quotesym>"),
             (_, InterpreterFallback::Deepquote(_)) => out.push_str("<deepquote>"),
         }
         for (s, oper) in self.dict.iter() {
@@ -536,7 +534,7 @@ impl InterpreterFallback {
     fn get_operation(&self, s: Symbol) -> Operation {
         match self {
             Self::Uniform(oper) => oper.clone(),
-            Self::Quotesym(original) => Operation::Quotesym(s, Rc::clone(original)),
+            Self::Quotesym => Operation::Quotesym(s),
             Self::Deepquote(original) => Operation::Deepquote(s, Rc::clone(original)),
         }
     }
@@ -547,7 +545,7 @@ impl Operation {
         out.push('(');
         match *self {
             Self::Builtin(b) => b.show(out),
-            Self::Quotesym(s, _) => {
+            Self::Quotesym(s) => {
                 out.push('[');
                 show_symbol(s, out);
                 out.push_str("]v*");
