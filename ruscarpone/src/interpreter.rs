@@ -230,7 +230,13 @@ impl<R: Read, W: Write> State<R, W> {
                         0 => Operation::Builtin(BuiltinOperation::Nop),
                         1 => context.get_action(definition.chars().next().unwrap()),
                         _ => Operation::Custom(Rc::new(CustomOperation {
-                            context,
+                            // we don't need to store this interpreter's parent, because:
+                            // - when this operation is executed, this interpreter gets reified
+                            //   with a different parent anyway
+                            // - when this operation is inspected with `@`, this interpreter
+                            //   gets pushed, but we don't make any guarantees about what
+                            //   its parent should be
+                            context: Interpreter::clear_parent(context),
                             definition,
                         })),
                     })
@@ -437,7 +443,7 @@ impl Interpreter {
             return original;
         }
         // Modify the interpreter in-place if possible; otherwise, clone its
-        // character dictionary and fallback functions and make a new one.
+        // other properties and make a new one.
         Rc::new(match Rc::try_unwrap(original) {
             Ok(mut i) => {
                 i.parent = Some(parent);
@@ -445,6 +451,25 @@ impl Interpreter {
             }
             Err(original) => Interpreter {
                 parent: Some(parent),
+                dict: original.dict.clone(),
+                archetype: original.archetype.clone(),
+                fallback: original.fallback.clone(),
+            },
+        })
+    }
+    fn clear_parent(original: Rc<Self>) -> Rc<Self> {
+        if original.parent.is_none() {
+            return original;
+        }
+        // Modify the interpreter in-place if possible; otherwise, clone its
+        // other properties and make a new one.
+        Rc::new(match Rc::try_unwrap(original) {
+            Ok(mut i) => {
+                i.parent = None;
+                i
+            }
+            Err(original) => Interpreter {
+                parent: None,
                 dict: original.dict.clone(),
                 archetype: original.archetype.clone(),
                 fallback: original.fallback.clone(),
