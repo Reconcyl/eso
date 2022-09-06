@@ -20,6 +20,7 @@ enum Task {
 
 struct InterpretersCtx {
     initial: Rc<Interpreter>,
+    io: Rc<Interpreter>,
     null: Rc<Interpreter>,
 }
 
@@ -42,6 +43,7 @@ struct Interpreter {
 #[derive(Clone)]
 enum InterpreterArchetype {
     Initial,
+    Io,
     Other,
 }
 
@@ -98,6 +100,8 @@ enum BuiltinOperation {
     Pop,
     Swap,
 
+    Debug,
+
     Illegal,
 }
 
@@ -114,6 +118,7 @@ impl<R: Read, W: Write> State<R, W> {
             current_interpreter: Rc::clone(&initial),
             named_interpreters: InterpretersCtx {
                 initial,
+                io: Rc::new(Interpreter::io()),
                 null: Rc::new(Interpreter::null()),
             },
             stack: Vec::new(),
@@ -308,6 +313,7 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push_any(a);
                     self.push_any(b);
                 }
+                BuiltinOperation::Debug => self.debug_stack_contents(),
                 BuiltinOperation::Illegal => {
                     return Err("Illegal operation performed".to_owned());
                 }
@@ -328,7 +334,8 @@ impl<R: Read, W: Write> State<R, W> {
                 self.save_interpreter(Rc::clone(&custom.context));
                 self.tasks.push(Task::Backup);
                 let idx = self.tasks.len();
-                self.tasks.extend(custom.definition.chars().map(Task::Perform));
+                self.tasks
+                    .extend(custom.definition.chars().map(Task::Perform));
                 self.tasks[idx..].reverse(); // pop from back to front
             }
         }
@@ -341,6 +348,14 @@ impl<R: Read, W: Write> State<R, W> {
         match o {
             Operation::Builtin(builtin) => match builtin {
                 BuiltinOperation::Nop => interp = Rc::clone(&self.named_interpreters.null),
+                BuiltinOperation::Output => {
+                    self.push('.');
+                    interp = Rc::clone(&self.named_interpreters.io);
+                }
+                BuiltinOperation::Input => {
+                    self.push(',');
+                    interp = Rc::clone(&self.named_interpreters.io);
+                }
                 BuiltinOperation::Reify
                 | BuiltinOperation::Deify
                 | BuiltinOperation::Extract
@@ -354,11 +369,10 @@ impl<R: Read, W: Write> State<R, W> {
                 | BuiltinOperation::Uniform
                 | BuiltinOperation::Deepquote
                 | BuiltinOperation::Quotesym
-                | BuiltinOperation::Output
-                | BuiltinOperation::Input
                 | BuiltinOperation::Dup
                 | BuiltinOperation::Pop
-                | BuiltinOperation::Swap => {
+                | BuiltinOperation::Swap
+                | BuiltinOperation::Debug => {
                     self.push('_');
                     interp = Rc::new(Interpreter::uniform(o));
                 }
@@ -413,6 +427,7 @@ impl<R: Read, W: Write> State<R, W> {
         self.push(']');
         self.push(interp);
     }
+
     pub fn debug_stack_contents(&mut self) {
         let mut s = String::new();
         for obj in &self.stack {
@@ -449,31 +464,6 @@ fn show_symbol(s: Symbol, out: &mut String) {
     }
 }
 
-fn initial_dict() -> HashMap<Symbol, Operation> {
-    [
-        ('v', BuiltinOperation::Reify),
-        ('^', BuiltinOperation::Deify),
-        ('>', BuiltinOperation::Extract),
-        ('<', BuiltinOperation::Install),
-        ('{', BuiltinOperation::GetParent),
-        ('}', BuiltinOperation::SetParent),
-        ('*', BuiltinOperation::Create),
-        ('@', BuiltinOperation::Expand),
-        ('!', BuiltinOperation::Perform),
-        ('0', BuiltinOperation::Null),
-        ('1', BuiltinOperation::Uniform),
-        ('[', BuiltinOperation::Deepquote),
-        ('\'', BuiltinOperation::Quotesym),
-        ('.', BuiltinOperation::Output),
-        (',', BuiltinOperation::Input),
-        (':', BuiltinOperation::Dup),
-        ('$', BuiltinOperation::Pop),
-        ('/', BuiltinOperation::Swap),
-    ]
-    .map(|(c, op)| (c, Operation::Builtin(op)))
-    .into()
-}
-
 impl Interpreter {
     fn uniform(oper: Operation) -> Self {
         Self {
@@ -489,13 +479,53 @@ impl Interpreter {
         // regarded as having the null interpreter as its archetype
         Interpreter::uniform(Operation::Builtin(BuiltinOperation::Illegal))
     }
-    fn initial() -> Self {
+    fn with_builtins(
+        dict: impl IntoIterator<Item = (char, BuiltinOperation)>,
+        archetype: InterpreterArchetype,
+    ) -> Self {
+        let dict = dict
+            .into_iter()
+            .map(|(c, op)| (c, Operation::Builtin(op)))
+            .collect();
+        let fallback = InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop));
         Self {
             parent: None,
-            dict: initial_dict(),
-            archetype: InterpreterArchetype::Initial,
-            fallback: InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Nop)),
+            dict,
+            archetype,
+            fallback,
         }
+    }
+    fn initial() -> Self {
+        Interpreter::with_builtins(
+            [
+                ('v', BuiltinOperation::Reify),
+                ('^', BuiltinOperation::Deify),
+                ('>', BuiltinOperation::Extract),
+                ('<', BuiltinOperation::Install),
+                ('{', BuiltinOperation::GetParent),
+                ('}', BuiltinOperation::SetParent),
+                ('*', BuiltinOperation::Create),
+                ('@', BuiltinOperation::Expand),
+                ('!', BuiltinOperation::Perform),
+                ('0', BuiltinOperation::Null),
+                ('1', BuiltinOperation::Uniform),
+                ('[', BuiltinOperation::Deepquote),
+                ('\'', BuiltinOperation::Quotesym),
+                ('.', BuiltinOperation::Output),
+                (',', BuiltinOperation::Input),
+                (':', BuiltinOperation::Dup),
+                ('$', BuiltinOperation::Pop),
+                ('/', BuiltinOperation::Swap),
+            ],
+            InterpreterArchetype::Initial,
+        )
+    }
+    fn io() -> Self {
+        Interpreter::with_builtins([
+            ('.', BuiltinOperation::Output),
+            (',', BuiltinOperation::Input),
+            ('?', BuiltinOperation::Debug),
+        ], InterpreterArchetype::Io)
     }
     fn quote(original: Rc<Self>) -> Self {
         Self {
@@ -572,23 +602,28 @@ impl Interpreter {
         out.push('(');
         let mut precursor = None;
         // base interpreter
+        use InterpreterArchetype::{Initial, Io, Other};
         match (&self.archetype, &self.fallback) {
-            (InterpreterArchetype::Initial, _) => {
+            (Initial, _) => {
                 precursor = Some(&ctx.initial);
                 out.push('v');
             }
-            (_, InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal))) => {
+            (Io, _) => {
+                precursor = Some(&ctx.io);
+                out.push_str("v'.>@/$/$/$");
+            }
+            (Other, InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal))) => {
                 out.push('0')
             }
-            (_, InterpreterFallback::Uniform(ref oper)) => {
+            (Other, InterpreterFallback::Uniform(ref oper)) => {
                 oper.show(out, ctx);
                 out.push('1');
             }
             // TODO: get good string representations for these interpreters.
             // Given only the currently available instructions, it's
             // impossible to get them on the stack, so it's not that important.
-            (_, InterpreterFallback::Quotesym) => out.push_str("<quotesym>"),
-            (_, InterpreterFallback::Deepquote) => out.push_str("<deepquote>"),
+            (Other, InterpreterFallback::Quotesym) => out.push_str("<quotesym>"),
+            (Other, InterpreterFallback::Deepquote) => out.push_str("<deepquote>"),
         }
         for (s, oper) in self.dict.iter() {
             if precursor.map_or(false, |p| p.dict.get(s) == Some(oper)) {
@@ -599,7 +634,6 @@ impl Interpreter {
             oper.show(out, ctx);
             show_symbol(*s, out);
             out.push('<');
-            oper.show(out, ctx);
         }
         out.push(')');
     }
@@ -665,6 +699,7 @@ impl BuiltinOperation {
             Self::Dup => "v(':)>",
             Self::Pop => "v('$)>",
             Self::Swap => "v('/)>",
+            Self::Debug => "(v'.>@/$/$/$)('?)>",
             Self::Illegal => "0('0)>",
         })
     }
