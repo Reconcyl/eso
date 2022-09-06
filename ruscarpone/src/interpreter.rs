@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
-use std::mem;
 use std::rc::Rc;
 
 pub struct State<R, W> {
@@ -305,10 +304,17 @@ impl<R: Read, W: Write> State<R, W> {
                 }
             }
             Operation::Custom(ref custom) => {
-                let old_interpreter =
-                    mem::replace(&mut self.current_interpreter, Rc::clone(&custom.context));
+                let callers_interpreter = Rc::clone(&self.current_interpreter);
+                self.current_interpreter = Interpreter::set_parent(
+                    callers_interpreter,
+                    Rc::clone(&custom.context),
+                    &self.named_interpreters,
+                );
                 self.run(custom.definition.chars())?;
-                self.current_interpreter = old_interpreter;
+                self.current_interpreter = Rc::clone(
+                    self.current_interpreter
+                        .get_parent(&self.named_interpreters),
+                );
             }
         }
         Ok(())
