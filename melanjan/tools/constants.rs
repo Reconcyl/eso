@@ -1,26 +1,13 @@
-use std::hash::{Hash, Hasher};
+pub type Reg = i16;
 
-pub type Reg = i8;
-
-const MAX: Reg = 50;
-const MIN: Reg = -49;
+const MAX: Reg = 116;
+const MIN: Reg = -115;
 
 #[repr(align(4))]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct State(Reg, Reg, Reg);
 
-impl Hash for State {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        u32::hash(&self.to_bits(), state);
-    }
-}
-
 impl State {
-    fn to_bits(self) -> u32 {
-        let Self(a, b, c) = self;
-        u32::from_le_bytes([a as u8, b as u8, c as u8, 0])
-    }
-
     fn valid(self) -> bool {
         let Self(a, b, c) = self;
         let r = MIN..=MAX;
@@ -108,12 +95,25 @@ fn go(start: State, mut is_end: impl FnMut(State) -> bool) -> Option<(String, St
 }
 
 fn main() {
-    let target = std::env::args()
-        .nth(1)
-        .unwrap()
-        .parse()
-        .expect("expected i8");
-    let start = State(0, 0, 0);
+    let args = std::env::args()
+        .skip(1)
+        .map(|arg| arg.parse::<Reg>().unwrap())
+        .collect::<Vec<_>>();
+    let (start, target);
+    match args.len() {
+        1 => {
+            start = State(0, 0, 0);
+            target = args[0];
+        }
+        4 => {
+            start = State(args[1], args[2], args[3]);
+            target = args[0];
+        }
+        _ => {
+            eprintln!("usage: ./constants [target] [optional starting register values]");
+            return;
+        }
+    }
     let is_end = |st: State| st.0 == target || st.1 == target || st.2 == target;
     if let Some((commands, final_state)) = go(start, is_end) {
         let State(a, b, c) = final_state;
