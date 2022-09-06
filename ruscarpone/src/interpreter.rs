@@ -21,6 +21,7 @@ enum Task {
 struct InterpretersCtx {
     initial: Rc<Interpreter>,
     io: Rc<Interpreter>,
+    strings: Rc<Interpreter>,
     null: Rc<Interpreter>,
 }
 
@@ -44,6 +45,7 @@ struct Interpreter {
 enum InterpreterArchetype {
     Initial,
     Io,
+    Strings,
     Other,
 }
 
@@ -101,6 +103,7 @@ enum BuiltinOperation {
     Swap,
 
     Debug,
+    Backslash,
 
     Illegal,
 }
@@ -119,6 +122,7 @@ impl<R: Read, W: Write> State<R, W> {
             named_interpreters: InterpretersCtx {
                 initial,
                 io: Rc::new(Interpreter::io()),
+                strings: Rc::new(Interpreter::strings()),
                 null: Rc::new(Interpreter::null()),
             },
             stack: Vec::new(),
@@ -288,8 +292,7 @@ impl<R: Read, W: Write> State<R, W> {
                     self.save_interpreter(Rc::new(Interpreter::deep_quote()));
                 }
                 BuiltinOperation::Quotesym => {
-                    self.current_interpreter =
-                        Rc::new(Interpreter::quote(Rc::clone(&self.current_interpreter)));
+                    self.save_interpreter(Rc::new(Interpreter::quotesym()))
                 }
                 BuiltinOperation::Output => {
                     let symbol = self.pop()?;
@@ -314,6 +317,9 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push_any(b);
                 }
                 BuiltinOperation::Debug => self.debug_stack_contents(),
+                BuiltinOperation::Backslash => {
+                    self.save_interpreter(Rc::new(Interpreter::backslash()))
+                }
                 BuiltinOperation::Illegal => {
                     return Err("Illegal operation performed".to_owned());
                 }
@@ -356,6 +362,14 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push(',');
                     interp = Rc::clone(&self.named_interpreters.io);
                 }
+                BuiltinOperation::Deepquote => {
+                    self.push('[');
+                    interp = Rc::clone(&self.named_interpreters.strings);
+                }
+                BuiltinOperation::Quotesym => {
+                    self.push('\'');
+                    interp = Rc::clone(&self.named_interpreters.strings);
+                }
                 BuiltinOperation::Reify
                 | BuiltinOperation::Deify
                 | BuiltinOperation::Extract
@@ -367,12 +381,11 @@ impl<R: Read, W: Write> State<R, W> {
                 | BuiltinOperation::Perform
                 | BuiltinOperation::Null
                 | BuiltinOperation::Uniform
-                | BuiltinOperation::Deepquote
-                | BuiltinOperation::Quotesym
                 | BuiltinOperation::Dup
                 | BuiltinOperation::Pop
                 | BuiltinOperation::Swap
-                | BuiltinOperation::Debug => {
+                | BuiltinOperation::Debug
+                | BuiltinOperation::Backslash => {
                     self.push('_');
                     interp = Rc::new(Interpreter::uniform(o));
                 }
@@ -521,18 +534,39 @@ impl Interpreter {
         )
     }
     fn io() -> Self {
-        Interpreter::with_builtins([
-            ('.', BuiltinOperation::Output),
-            (',', BuiltinOperation::Input),
-            ('?', BuiltinOperation::Debug),
-        ], InterpreterArchetype::Io)
+        Interpreter::with_builtins(
+            [
+                ('.', BuiltinOperation::Output),
+                (',', BuiltinOperation::Input),
+                ('?', BuiltinOperation::Debug),
+            ],
+            InterpreterArchetype::Io,
+        )
     }
-    fn quote(original: Rc<Self>) -> Self {
+    fn strings() -> Self {
+        Interpreter::with_builtins(
+            [
+                ('\'', BuiltinOperation::Output),
+                ('[', BuiltinOperation::Input),
+                ('\\', BuiltinOperation::Backslash),
+            ],
+            InterpreterArchetype::Strings,
+        )
+    }
+    fn quotesym() -> Self {
         Self {
-            parent: Some(original),
+            parent: None,
             dict: HashMap::new(),
             archetype: InterpreterArchetype::Other,
             fallback: InterpreterFallback::Quotesym,
+        }
+    }
+    fn backslash() -> Self {
+        Self {
+            dict: [('n', '\n'), ('r', '\r'), ('t', '\t')]
+                .map(|(c, e)| (c, Operation::Quotesym(e)))
+                .into(),
+            ..Self::quotesym()
         }
     }
     fn deep_quote() -> Self {
@@ -602,7 +636,7 @@ impl Interpreter {
         out.push('(');
         let mut precursor = None;
         // base interpreter
-        use InterpreterArchetype::{Initial, Io, Other};
+        use InterpreterArchetype::{Initial, Io, Strings, Other};
         match (&self.archetype, &self.fallback) {
             (Initial, _) => {
                 precursor = Some(&ctx.initial);
@@ -612,9 +646,14 @@ impl Interpreter {
                 precursor = Some(&ctx.io);
                 out.push_str("v'.>@/$/$/$");
             }
-            (Other, InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal))) => {
-                out.push('0')
+            (Strings, _) => {
+                precursor = Some(&ctx.strings);
+                out.push_str("v''>@/$/$/$");
             }
+            (
+                Other,
+                InterpreterFallback::Uniform(Operation::Builtin(BuiltinOperation::Illegal)),
+            ) => out.push('0'),
             (Other, InterpreterFallback::Uniform(ref oper)) => {
                 oper.show(out, ctx);
                 out.push('1');
@@ -700,6 +739,7 @@ impl BuiltinOperation {
             Self::Pop => "v('$)>",
             Self::Swap => "v('/)>",
             Self::Debug => "(v'.>@/$/$/$)('?)>",
+            Self::Backslash => "(v''>@/$/$/$)('\\)>",
             Self::Illegal => "0('0)>",
         })
     }
