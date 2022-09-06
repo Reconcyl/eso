@@ -33,7 +33,7 @@ fn run() -> Result<(), String> {
         let mut state = interpreter::State::new(stdin.lock(), io::stdout());
         for file in files {
             for byte in file.bytes() {
-                state.run_symbol(byte.map_err(|e| e.to_string())? as char)?;
+                state.run([byte.map_err(|e| e.to_string())? as char])?;
             }
         }
         Ok(())

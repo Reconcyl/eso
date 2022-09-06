@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::rc::Rc;
 
+type Symbol = char;
+
 pub struct State<R, W> {
+    tasks: Vec<Task>,
     current_interpreter: Rc<Interpreter>,
     named_interpreters: InterpretersCtx,
     stack: Vec<Object>,
@@ -10,12 +13,15 @@ pub struct State<R, W> {
     output: W,
 }
 
+enum Task {
+    Perform(Symbol),
+    Backup,
+}
+
 struct InterpretersCtx {
     initial: Rc<Interpreter>,
     null: Rc<Interpreter>,
 }
-
-type Symbol = char;
 
 #[derive(Clone)]
 enum Object {
@@ -104,6 +110,7 @@ impl<R: Read, W: Write> State<R, W> {
     pub fn new(input: R, output: W) -> Self {
         let initial = Rc::new(Interpreter::initial());
         State {
+            tasks: Vec::new(),
             current_interpreter: Rc::clone(&initial),
             named_interpreters: InterpretersCtx {
                 initial,
@@ -193,6 +200,24 @@ impl<R: Read, W: Write> State<R, W> {
             .get_parent(&self.named_interpreters);
         let parent = Rc::clone(&parent);
         self.current_interpreter = parent;
+    }
+
+    pub fn run<I: IntoIterator<Item = Symbol>>(&mut self, symbols: I) -> Result<(), String> {
+        assert!(self.tasks.is_empty());
+        for s in symbols.into_iter() {
+            self.tasks.push(Task::Perform(s));
+        }
+        self.tasks.reverse(); // pop from back to front
+        while let Some(task) = self.tasks.pop() {
+            match task {
+                Task::Perform(s) => {
+                    let oper = self.current_interpreter.get_action(s);
+                    self.run_operation(oper)?;
+                }
+                Task::Backup => self.backup_interpreter(),
+            }
+        }
+        Ok(())
     }
     fn run_operation(&mut self, o: Operation) -> Result<(), String> {
         match o {
@@ -303,12 +328,15 @@ impl<R: Read, W: Write> State<R, W> {
             }
             Operation::Custom(custom) => {
                 self.save_interpreter(Rc::clone(&custom.context));
-                self.run(custom.definition.chars())?;
-                self.backup_interpreter();
+                self.tasks.push(Task::Backup);
+                let idx = self.tasks.len();
+                self.tasks.extend(custom.definition.chars().map(Task::Perform));
+                self.tasks[idx..].reverse(); // pop from back to front
             }
         }
         Ok(())
     }
+
     fn expand_operation(&mut self, o: Operation) {
         let interp;
         self.push('[');
@@ -386,16 +414,6 @@ impl<R: Read, W: Write> State<R, W> {
         }
         self.push(']');
         self.push(interp);
-    }
-    pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
-        let oper = self.current_interpreter.get_action(s);
-        self.run_operation(oper)
-    }
-    pub fn run<I: IntoIterator<Item = Symbol>>(&mut self, symbols: I) -> Result<(), String> {
-        for s in symbols.into_iter() {
-            self.run_symbol(s)?;
-        }
-        Ok(())
     }
     pub fn debug_stack_contents(&mut self) {
         let mut s = String::new();
