@@ -195,8 +195,8 @@ impl<R: Read, W: Write> State<R, W> {
         }
         self.push(']');
     }
-    fn run_operation(&mut self, o: &Operation) -> Result<(), String> {
-        match *o {
+    fn run_operation(&mut self, o: Operation) -> Result<(), String> {
+        match o {
             Operation::Builtin(o) => match o {
                 BuiltinOperation::Nop => {}
                 BuiltinOperation::Reify => self.push(Rc::clone(&self.current_interpreter)),
@@ -250,7 +250,7 @@ impl<R: Read, W: Write> State<R, W> {
                 }
                 BuiltinOperation::Perform => {
                     let oper = self.pop()?;
-                    self.run_operation(&oper)?;
+                    self.run_operation(oper)?;
                 }
                 BuiltinOperation::Null => self.push(Rc::clone(&self.named_interpreters.null)),
                 BuiltinOperation::Uniform => {
@@ -294,22 +294,22 @@ impl<R: Read, W: Write> State<R, W> {
                     return Err("Illegal operation performed".to_owned());
                 }
             },
-            Operation::Quotesym(s, ref old_interpreter) => {
+            Operation::Quotesym(s, old_interpreter) => {
                 self.push(s);
-                self.current_interpreter = Rc::clone(old_interpreter);
+                self.current_interpreter = old_interpreter;
             }
-            Operation::Deepquote(s, ref old_interpreter) => {
+            Operation::Deepquote(s, old_interpreter) => {
                 self.push(s);
                 if s == ']' {
                     self.nesting -= 1;
                     if self.nesting == 0 {
-                        self.current_interpreter = Rc::clone(old_interpreter);
+                        self.current_interpreter = old_interpreter;
                     }
                 } else if s == '[' {
                     self.nesting += 1;
                 }
             }
-            Operation::Custom(ref custom) => {
+            Operation::Custom(custom) => {
                 let callers_interpreter = Rc::clone(&self.current_interpreter);
                 self.current_interpreter = Interpreter::set_parent(
                     callers_interpreter,
@@ -327,7 +327,7 @@ impl<R: Read, W: Write> State<R, W> {
     }
     pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
         let oper = self.current_interpreter.get_action(s);
-        self.run_operation(&oper)
+        self.run_operation(oper)
     }
     pub fn run<I: IntoIterator<Item = Symbol>>(&mut self, symbols: I) -> Result<(), String> {
         for s in symbols.into_iter() {
