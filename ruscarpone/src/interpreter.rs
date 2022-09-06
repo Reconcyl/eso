@@ -195,6 +195,19 @@ impl<R: Read, W: Write> State<R, W> {
         }
         self.push(']');
     }
+    fn save_interpreter(&mut self, new_interpreter: Rc<Interpreter>) {
+        let current = Rc::clone(&self.current_interpreter);
+        self.current_interpreter = Interpreter::set_parent(
+            new_interpreter,
+            current,
+            &self.named_interpreters,
+        );
+    }
+    fn backup_interpreter(&mut self) {
+        let parent = self.current_interpreter.get_parent(&self.named_interpreters);
+        let parent = Rc::clone(&parent);
+        self.current_interpreter = parent;
+    }
     fn run_operation(&mut self, o: Operation) -> Result<(), String> {
         match o {
             Operation::Builtin(o) => match o {
@@ -310,17 +323,9 @@ impl<R: Read, W: Write> State<R, W> {
                 }
             }
             Operation::Custom(custom) => {
-                let callers_interpreter = Rc::clone(&self.current_interpreter);
-                self.current_interpreter = Interpreter::set_parent(
-                    callers_interpreter,
-                    Rc::clone(&custom.context),
-                    &self.named_interpreters,
-                );
+                self.save_interpreter(Rc::clone(&custom.context));
                 self.run(custom.definition.chars())?;
-                self.current_interpreter = Rc::clone(
-                    self.current_interpreter
-                        .get_parent(&self.named_interpreters),
-                );
+                self.backup_interpreter();
             }
         }
         Ok(())
