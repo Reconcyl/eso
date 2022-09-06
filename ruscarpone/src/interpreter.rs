@@ -8,7 +8,6 @@ pub struct State<R, W> {
     stack: Vec<Object>,
     input: io::Bytes<R>,
     output: W,
-    nesting: u32,
 }
 
 struct InterpretersCtx {
@@ -48,14 +47,14 @@ enum InterpreterArchetype {
 enum InterpreterFallback {
     Uniform(Operation),
     Quotesym,
-    Deepquote(Rc<Interpreter>),
+    Deepquote,
 }
 
 #[derive(Clone)]
 enum Operation {
     Builtin(BuiltinOperation),
     Quotesym(Symbol),
-    Deepquote(Symbol, Rc<Interpreter>),
+    Deepquote(Symbol),
     Custom(Rc<CustomOperation>),
 }
 
@@ -64,9 +63,7 @@ impl PartialEq for Operation {
         match (self, other) {
             (Operation::Builtin(b1), Operation::Builtin(b2)) => b1 == b2,
             (Operation::Quotesym(s1), Operation::Quotesym(s2)) => s1 == s2,
-            (Operation::Deepquote(s1, i1), Operation::Deepquote(s2, i2)) => {
-                s1 == s2 && Rc::ptr_eq(i1, i2)
-            }
+            (Operation::Deepquote(s1), Operation::Deepquote(s2)) => s1 == s2,
             (Operation::Custom(c1), Operation::Custom(c2)) => Rc::ptr_eq(c1, c2),
             _ => false,
         }
@@ -115,7 +112,6 @@ impl<R: Read, W: Write> State<R, W> {
             stack: Vec::new(),
             input: input.bytes(),
             output,
-            nesting: 0,
         }
     }
     fn push_any(&mut self, obj: Object) {
@@ -269,11 +265,8 @@ impl<R: Read, W: Write> State<R, W> {
                     self.push(Rc::new(Interpreter::uniform(oper)));
                 }
                 BuiltinOperation::Deepquote => {
-                    self.nesting = 1;
                     self.push('[');
-                    self.current_interpreter = Rc::new(Interpreter::deep_quote(Rc::clone(
-                        &self.current_interpreter,
-                    )));
+                    self.save_interpreter(Rc::new(Interpreter::deep_quote()));
                 }
                 BuiltinOperation::Quotesym => {
                     self.current_interpreter =
@@ -309,15 +302,12 @@ impl<R: Read, W: Write> State<R, W> {
                 self.push(s);
                 self.backup_interpreter();
             }
-            Operation::Deepquote(s, old_interpreter) => {
+            Operation::Deepquote(s) => {
                 self.push(s);
                 if s == ']' {
-                    self.nesting -= 1;
-                    if self.nesting == 0 {
-                        self.current_interpreter = old_interpreter;
-                    }
+                    self.backup_interpreter();
                 } else if s == '[' {
-                    self.nesting += 1;
+                    self.save_interpreter(Rc::new(Interpreter::deep_quote()));
                 }
             }
             Operation::Custom(custom) => {
@@ -430,12 +420,12 @@ impl Interpreter {
             fallback: InterpreterFallback::Quotesym,
         }
     }
-    fn deep_quote(original: Rc<Self>) -> Self {
+    fn deep_quote() -> Self {
         Self {
             parent: None,
             dict: HashMap::new(),
             archetype: InterpreterArchetype::Other, // TODO: add a variant for this
-            fallback: InterpreterFallback::Deepquote(original),
+            fallback: InterpreterFallback::Deepquote,
         }
     }
     fn get_parent<'a>(&'a self, ctx: &'a InterpretersCtx) -> &'a Rc<Self> {
@@ -513,7 +503,7 @@ impl Interpreter {
             // Given only the currently available instructions, it's
             // impossible to get them on the stack, so it's not that important.
             (_, InterpreterFallback::Quotesym) => out.push_str("<quotesym>"),
-            (_, InterpreterFallback::Deepquote(_)) => out.push_str("<deepquote>"),
+            (_, InterpreterFallback::Deepquote) => out.push_str("<deepquote>"),
         }
         for (s, oper) in self.dict.iter() {
             if precursor.map_or(false, |p| p.dict.get(s) == Some(oper)) {
@@ -535,7 +525,7 @@ impl InterpreterFallback {
         match self {
             Self::Uniform(oper) => oper.clone(),
             Self::Quotesym => Operation::Quotesym(s),
-            Self::Deepquote(original) => Operation::Deepquote(s, Rc::clone(original)),
+            Self::Deepquote => Operation::Deepquote(s),
         }
     }
 }
@@ -550,7 +540,7 @@ impl Operation {
                 show_symbol(s, out);
                 out.push_str("]v*");
             }
-            Self::Deepquote(s, _) => {
+            Self::Deepquote(s) => {
                 // TODO: figure out a better way to represent this
                 out.push_str("<deepquote-");
                 out.push(s);
