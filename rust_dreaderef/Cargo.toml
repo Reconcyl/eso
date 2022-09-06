@@ -1,7 +1,7 @@
 [package]
 name = "rust_dreaderef"
 version = "0.1.0"
-authors = ["ScratchMan544 <root@ubuntu2.localdomain>"]
+authors = ["Reconcyl"]
 
 [dependencies]
-num = "0.1"
+num = "0.4"
