@@ -265,8 +265,6 @@ impl<R: Read, W: Write> State<R, W> {
                         })),
                     })
                 }
-                // This is an unhelpful instruction, so I'm implementing it in the most unhelpful way
-                // possible.
                 BuiltinOperation::Expand => {
                     let oper = self.pop()?;
                     self.expand_operation(oper);
