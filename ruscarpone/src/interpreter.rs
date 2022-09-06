@@ -182,23 +182,15 @@ impl<R: Read, W: Write> State<R, W> {
         self.stack.truncate(idx);
         Ok((str, string_end - string_start))
     }
-    fn push_string(&mut self, string: &str) {
-        self.push('[');
-        for symbol in string.chars() {
-            self.push(symbol);
-        }
-        self.push(']');
-    }
     fn save_interpreter(&mut self, new_interpreter: Rc<Interpreter>) {
         let current = Rc::clone(&self.current_interpreter);
-        self.current_interpreter = Interpreter::set_parent(
-            new_interpreter,
-            current,
-            &self.named_interpreters,
-        );
+        self.current_interpreter =
+            Interpreter::set_parent(new_interpreter, current, &self.named_interpreters);
     }
     fn backup_interpreter(&mut self) {
-        let parent = self.current_interpreter.get_parent(&self.named_interpreters);
+        let parent = self
+            .current_interpreter
+            .get_parent(&self.named_interpreters);
         let parent = Rc::clone(&parent);
         self.current_interpreter = parent;
     }
@@ -252,8 +244,7 @@ impl<R: Read, W: Write> State<R, W> {
                 // possible.
                 BuiltinOperation::Expand => {
                     let oper = self.pop()?;
-                    self.push_string("@");
-                    self.push(Rc::new(Interpreter::uniform(oper)));
+                    self.expand_operation(oper);
                 }
                 BuiltinOperation::Perform => {
                     let oper = self.pop()?;
@@ -317,6 +308,84 @@ impl<R: Read, W: Write> State<R, W> {
             }
         }
         Ok(())
+    }
+    fn expand_operation(&mut self, o: Operation) {
+        let interp;
+        self.push('[');
+        match o {
+            Operation::Builtin(builtin) => match builtin {
+                BuiltinOperation::Nop => interp = Rc::clone(&self.named_interpreters.null),
+                BuiltinOperation::Reify
+                | BuiltinOperation::Deify
+                | BuiltinOperation::Extract
+                | BuiltinOperation::Install
+                | BuiltinOperation::GetParent
+                | BuiltinOperation::SetParent
+                | BuiltinOperation::Create
+                | BuiltinOperation::Expand
+                | BuiltinOperation::Perform
+                | BuiltinOperation::Null
+                | BuiltinOperation::Uniform
+                | BuiltinOperation::Deepquote
+                | BuiltinOperation::Quotesym
+                | BuiltinOperation::Output
+                | BuiltinOperation::Input
+                | BuiltinOperation::Dup
+                | BuiltinOperation::Pop
+                | BuiltinOperation::Swap => {
+                    self.push('_');
+                    interp = Rc::new(Interpreter::uniform(o));
+                }
+                BuiltinOperation::Illegal => {
+                    self.push('_');
+                    interp = Rc::clone(&self.named_interpreters.null);
+                }
+            },
+            Operation::Quotesym('[') => {
+                for c in ['[', ']', '$', 'v', '{', '^'] {
+                    self.push(c);
+                }
+                interp = Rc::clone(&self.named_interpreters.initial);
+            }
+            Operation::Quotesym(']') => {
+                for c in ['[', ']', '/', '$', 'v', '{', '^'] {
+                    self.push(c);
+                }
+                interp = Rc::clone(&self.named_interpreters.initial);
+            }
+            Operation::Quotesym(s) => {
+                for c in ['\'', s, 'v', '{', '^'] {
+                    self.push(c);
+                }
+                interp = Rc::clone(&self.named_interpreters.initial);
+            }
+            Operation::Deepquote('[') => {
+                for c in ['v', '[', ']', '$', '>', '!'] {
+                    self.push(c);
+                }
+                interp = Rc::clone(&self.named_interpreters.initial);
+            }
+            Operation::Deepquote(']') => {
+                for c in ['[', ']', '/', '$', 'v', '{', '^'] {
+                    self.push(c);
+                }
+                interp = Rc::clone(&self.named_interpreters.initial);
+            }
+            Operation::Deepquote(s) => {
+                for c in ['\'', s] {
+                    self.push(c);
+                }
+                interp = Rc::clone(&self.named_interpreters.initial);
+            }
+            Operation::Custom(custom) => {
+                for c in custom.definition.chars() {
+                    self.push(c);
+                }
+                interp = Rc::clone(&custom.context);
+            }
+        }
+        self.push(']');
+        self.push(interp);
     }
     pub fn run_symbol(&mut self, s: Symbol) -> Result<(), String> {
         let oper = self.current_interpreter.get_action(s);
@@ -424,7 +493,7 @@ impl Interpreter {
         Self {
             parent: None,
             dict: HashMap::new(),
-            archetype: InterpreterArchetype::Other, // TODO: add a variant for this
+            archetype: InterpreterArchetype::Other,
             fallback: InterpreterFallback::Deepquote,
         }
     }
