@@ -9,6 +9,7 @@ Regardless, I hope you find them interesting.
 | `9f8`            | 9f87m4atttaaaou; compiler.
 | `aubers`         | Aubergine interpreter.
 | `betaload`       | Underload extension providing input and some bells and whistles.
+| `bitq`           | Simple interpreter for BitQueue.
 | `boolet`         | Attempt at an efficient Boolet interpreter.
 | `check`          | Language where programs switch between executing in 2d and 1d.
 | `digfill`        | DigFill interpreter and mediocre graphical debugger.
