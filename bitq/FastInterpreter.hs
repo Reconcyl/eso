@@ -12,7 +12,6 @@ import Control.Monad.ST.Strict (runST)
 
 import Data.List (nub, intercalate, zip4)
 import Data.Void (Void, absurd)
-import Data.Word (Word8)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as Set
@@ -20,15 +19,15 @@ import Data.Set (Set)
 import qualified Data.Vector as BVector
 import qualified Data.Vector.Unboxed as Vector
 import qualified Data.Vector.Unboxed.Mutable as Vector
-import Data.Vector.Unboxed (Vector, MVector)
+import Data.Vector.Unboxed (Vector)
 
 import qualified Parser
 import Parser (Ins' (..))
 
 newtype Fn = Fn Int deriving (Eq, Ord, Show)
+
 type ResolvedIns = Ins' Void Fn -- all calls are Anon
 type Fns = Map Fn ResolvedIns
-type ResolvedPgm = (Fn, Fns)
 
 type NameResolve = State ( Int -- next ID
                          , Fns -- definitions
