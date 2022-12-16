@@ -5,8 +5,6 @@
 module Main (main) where
 
 import qualified Data.Bits
-import Data.List (group, sort, intercalate)
-import Data.Either (partitionEithers)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Sequence (Seq)
@@ -17,82 +15,7 @@ import System.IO (isEOF, stdin, stdout, stderr,
                   hPutStr, hSetBinaryMode, readFile)
 import System.Environment (getArgs, getProgName)
 
-import Text.Parsec (Parsec)
-import qualified Text.Parsec as Parsec
-
-data Ins
-  = Add0 | Add1
-  | Call String | Ret | RestartCaller | Recur
-  | Anon Ins | Cond Ins
-  | Block [Ins]
-  | Input | Output
-  deriving (Show)
-
-data Pgm = Pgm {
-    fns :: Map String Ins,
-    main_ :: [Ins]
-  }
-  deriving (Show)
-
-parsePgm :: String -> Either String Pgm
-parsePgm s =
-  let s' = clean s in
-    case Parsec.parse pgm {- source file name: -} "" s' of
-      Left e -> Left (show e)
-      Right toplevel ->
-        let (fns, main) = partitionEithers toplevel in
-        case duplicates (fst <$> fns) of
-          [] -> Right $ Pgm (Map.fromList fns) main
-          [dup] -> Left $ "function " ++ dup ++
-                          " has multiple definitions"
-          dups -> Left $ "functions " ++ intercalate ", " dups ++
-                         "have multiple definitions"
-  where
-    clean :: String -> String
-    clean (' ':s) = clean s
-    clean ('\t':s) = clean s
-    clean ('\r':s) = clean s
-    clean ('\n':s) = clean s
-    clean (';':s) = clean (dropWhile (/= '\n') s)
-    clean (c:s) = c : clean s
-    clean [] = []
-
-    duplicates :: Ord a => [a] -> [a]
-    duplicates xs = [head g | g <- group (sort xs), length g > 1]
-
-    (<|>) = (Parsec.<|>); (<?>) = flip (Parsec.<?>); many = Parsec.many
-    char = Parsec.char; oneOf = Parsec.oneOf; noneOf = Parsec.noneOf
-
-    pgm :: Parsec String () [Either (String, Ins) Ins]
-    pgm = many toplevel <* Parsec.eof
-
-    toplevel :: Parsec String () (Either (String, Ins) Ins)
-    toplevel = (Left <$> fndef) <|> (Right <$> instruction)
-
-    ident = "identifier" <?> do
-      let alpha = ['a'..'z'] ++ ['A'..'Z'] ++ "_"
-      let alnum = ['0'..'9'] ++ alpha
-      h <- oneOf alpha; t <- many (oneOf alnum); pure (h:t)
-
-    fndef :: Parsec String () (String, Ins)
-    fndef = "function definition" <?> do
-      char ':'; n <- ident; b <- instruction; pure (n, b)
-
-    instruction :: Parsec String () Ins
-    instruction = "instruction" <?> do
-      noneOf ")" >>= \case
-        '0' -> pure Add0
-        '1' -> pure Add1
-        '>' -> Call <$> ident
-        '<' -> pure Ret
-        '^' -> pure RestartCaller
-        '"' -> pure Recur
-        '\'' -> Anon <$> instruction
-        '?' -> Cond <$> instruction
-        '(' -> Block <$> many instruction <* char ')'
-        ',' -> pure Input
-        '.' -> pure Output
-        c -> fail $ "invalid command " ++ show c
+import Parser (Ins' (..), Ins, Block (..), Pgm (..), parsePgm)
 
 data Bit = B0 | B1
 instance Show Bit where
@@ -110,9 +33,9 @@ data Execution = Execution {
     queue :: Seq Bit
   }
 
-initEx :: [Ins] -> Execution
-initEx ins = Execution
-  { frames = [(Block ins, ins)]
+initEx :: Block -> Execution
+initEx (B ins) = Execution
+  { frames = [(Block (B ins), ins)]
   , queue = Seq.Empty }
 
 instance Show Execution where
@@ -131,7 +54,7 @@ instance Show Execution where
       Recur -> '"':acc
       Anon f' -> '\'' : showIns acc f'
       Cond c -> '?' : showIns acc c
-      Block b -> '(' : foldr (flip showIns) (')' : acc) b
+      Block (B b) -> '(' : foldr (flip showIns) (')' : acc) b
       Input -> ',':acc
       Output -> '.':acc
 
@@ -162,7 +85,7 @@ step fns (Execution { frames, queue }) =
               let pref = (case bit of B0 -> []; B1 -> [c]) in
               step ((f,pref++frame'):frames') queue'
             Seq.Empty -> Nothing
-        Block b -> step ((f, b ++ frame'):frames') queue
+        Block (B b) -> step ((f, b ++ frame'):frames') queue
         Input -> Just $ isEOF >>= \case
           True -> pure $ Execution ((f,frame'):frames') queue
           False -> do
