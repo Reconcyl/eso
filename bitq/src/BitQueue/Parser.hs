@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Parser (Ins' (..), Ins, Fn (..), Pgm (..), parsePgm) where
+module BitQueue.Parser (Ins' (..), Ins, Fn (..), Pgm (..), parsePgm) where
 
 import Data.Either (partitionEithers)
 import Data.List (group, sort, intercalate)

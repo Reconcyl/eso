@@ -1,8 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 
-module FastInterpreter (compile) where
+module Main (main, compile) where
 
 import Control.Monad (when, (>=>))
 import Control.Arrow ((>>>))
@@ -21,14 +19,13 @@ import qualified Data.Vector.Unboxed as Vector
 import qualified Data.Vector.Unboxed.Mutable as Vector
 import Data.Vector.Unboxed (Vector)
 
-import qualified Parser
-import Parser (Ins' (..))
+import qualified BitQueue.Parser as Parser
+import BitQueue.Parser (Ins' (..))
 
 newtype Fn = Fn Int deriving (Eq, Ord, Show)
 
 type ResolvedIns = Ins' Void Fn -- all calls are Anon
 type Fns = Map Fn ResolvedIns
-
 type NameResolve = State ( Int -- next ID
                          , Fns -- definitions
                          , [String] -- reference errors
@@ -183,19 +180,19 @@ deadCodeElim is = filterIns is (findAlive is) where
     let visit idx = do
           visited <- Vector.read alive idx
           when (not visited) $ do
-          Vector.write alive idx True
-          case insns BVector.! idx of
-            Add0 -> next; Add1 -> next; Input -> next; Output -> next
-            Call (Jmp d) -> visit (idx + d)
-            Call (CondJmp d) -> do visit d; next
-            Call CondRet -> next
-            Ret -> done; RestartCaller -> done
-            Anon _ -> next
-            Recur -> error "not handled"
-            Cond _ -> error "not handled"
-            Block _ -> error "not handled"
-            where done = pure ()
-                  next = visit (idx + 1)
+            Vector.write alive idx True
+            case insns BVector.! idx of
+              Add0 -> next; Add1 -> next; Input -> next; Output -> next
+              Call (Jmp d) -> visit (idx + d)
+              Call (CondJmp d) -> do visit d; next
+              Call CondRet -> next
+              Ret -> done; RestartCaller -> done
+              Anon _ -> next
+              Recur -> error "not handled"
+              Cond _ -> error "not handled"
+              Block _ -> error "not handled"
+              where done = pure ()
+                    next = visit (idx + 1)
     visit 0
     Vector.toList <$> Vector.freeze alive
 
@@ -351,3 +348,6 @@ compile = Parser.parsePgm
       | x == x' = x
       | otherwise = loopPass f x'
       where x' = f x
+
+main :: IO ()
+main = putStrLn "TODO"

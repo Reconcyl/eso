@@ -4,6 +4,8 @@
 
 module Main (main) where
 
+import BitQueue.Parser (Ins' (..), Ins, Fn (..), Pgm (..), parsePgm)
+
 import qualified Data.Bits
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -14,8 +16,6 @@ import Data.Foldable (toList)
 import System.IO (isEOF, stdin, stdout, stderr,
                   hPutStr, hSetBinaryMode, readFile)
 import System.Environment (getArgs, getProgName)
-
-import Parser (Ins' (..), Ins, Block (..), Pgm (..), parsePgm)
 
 data Bit = B0 | B1
 instance Show Bit where
@@ -33,9 +33,9 @@ data Execution = Execution {
     queue :: Seq Bit
   }
 
-initEx :: Block -> Execution
-initEx (B ins) = Execution
-  { frames = [(Block (B ins), ins)]
+initEx :: [Ins] -> Execution
+initEx inss = Execution
+  { frames = [(Block inss, inss)]
   , queue = Seq.Empty }
 
 instance Show Execution where
@@ -52,9 +52,9 @@ instance Show Execution where
       Ret -> '<':acc
       RestartCaller -> '^':acc
       Recur -> '"':acc
-      Anon f' -> '\'' : showIns acc f'
+      Anon (Fn f') -> '\'' : showIns acc f'
       Cond c -> '?' : showIns acc c
-      Block (B b) -> '(' : foldr (flip showIns) (')' : acc) b
+      Block b -> '(' : foldr (flip showIns) (')' : acc) b
       Input -> ',':acc
       Output -> '.':acc
 
@@ -78,14 +78,14 @@ step fns (Execution { frames, queue }) =
             (f,_):frames'' -> step ((f,[f]):frames'') queue
             [] -> fail "can't restart at top level"
         Recur -> step ((f,[f]):(f,frame'):frames') queue
-        Anon f' -> step ((f',[f']):(f,frame'):frames') queue
+        Anon (Fn f') -> step ((f',[f']):(f,frame'):frames') queue
         Cond c ->
           case queue of
             bit Seq.:<| queue' ->
               let pref = (case bit of B0 -> []; B1 -> [c]) in
               step ((f,pref++frame'):frames') queue'
             Seq.Empty -> Nothing
-        Block (B b) -> step ((f, b ++ frame'):frames') queue
+        Block b -> step ((f, b ++ frame'):frames') queue
         Input -> Just $ isEOF >>= \case
           True -> pure $ Execution ((f,frame'):frames') queue
           False -> do
@@ -134,10 +134,10 @@ main = getArgs >>= \case
           hPutStr stderr $ show ex
           case step fns ex of
             Nothing -> return ()
-            Just f -> do
+            Just fn -> do
               wait <- getChar
               hSetBinaryMode stdin True
-              ex' <- f
+              ex' <- fn
               hSetBinaryMode stdin False
               go ex'
     go (initEx main_)
