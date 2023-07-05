@@ -54,9 +54,9 @@ structure Main : MAIN = struct
   fun errExit msg = (err msg; OS.Process.exit OS.Process.failure)
 
   fun finalize (first, final) =
-    let val res = first () handle err =>
-      (final (); raise err)
-    in final (); res end
+    (first () handle err =>
+      (final (); raise err))
+    before (final ())
 
   structure Syntax = Syntax (TextIO.StreamIO)
   structure Value = Value (
