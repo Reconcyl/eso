@@ -63,11 +63,22 @@ eval env v = pure v
 
 initialEnv :: Env
 initialEnv = Map.fromList
-  [ ("+", VFun $ \_ args -> case args of [VInt n1, VInt n2] -> pure (VInt (n1 + n2))
-                                         _                  -> fail "invalid arguments")
+  [ ("+", VFun $ \env args -> case args of [e1, e2] -> do v1 <- eval env e1
+                                                          v2 <- eval env e2
+                                                          case (v1, v2) of
+                                                            (VInt n1, VInt n2) -> pure (VInt (n1 + n2))
+                                                            (_, _) -> fail "arguments to + have invalid types")
   , ("eval",
-          VFun $ \env args -> case args of [e] -> eval env e
+          VFun $ \env args -> case args of [e] -> do eval env e >>= eval env
                                            _   -> fail "eval takes 1 argument")
+  , ("let",
+          VFun $ \env args -> case args of [VSym s, e1, e2] -> do v1 <- eval env e1
+                                                                  eval (Map.insert s v1 env) e2
+                                           _                -> fail "invalid arguments to let")
+  -- TODO: make this more primitive and implement fun in userspace
+  , ("fun",
+          VFun $ \_ args -> case args of [VSym s, body] -> pure $ VFun $ \env args -> eval (Map.insert s (VList args) env) body
+                                         _              -> fail "invalid arguments to fun")
   ]
 
 main :: IO ()
