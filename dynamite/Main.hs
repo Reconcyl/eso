@@ -3,11 +3,18 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
+module Main (main) where
 
 import Prelude hiding (fail)
 
 import System.IO (hPutStrLn, stderr)
 import System.Environment (getArgs)
+import qualified Control.Monad.Reader as Reader
+import Control.Monad.Reader (ReaderT)
 import Data.Char (isDigit, isSpace)
 import Data.Map.Strict (Map)
 import qualified Data.Map as Map
@@ -19,7 +26,7 @@ data Val = VInt Integer
          | VStr String
          | VSym Sym
          | VList [Val]
-         | VFun (Env -> [Form] -> Dynamite Val)
+         | VFun ([Form] -> Dynamite Val)
 
 tag :: Val -> String
 tag (VInt  _) = "integer"
@@ -56,70 +63,73 @@ parse1 s = parse s >>= \case
 
 type Form = Val
 
-type Dynamite = Either String
+newtype Dynamite a = Dynamite { runDynamite :: ReaderT Env (Either String) a
+                              } deriving (Functor, Applicative, Monad)
+deriving instance (Reader.MonadReader Env Dynamite)
+
 type Env = Map Sym Val
 
 fail :: String -> Dynamite a
-fail = Left
+fail = Dynamite . Reader.lift . Left
 
-eval :: Env -> Form -> Dynamite Val
-eval env (VSym s) =
-  case Map.lookup s env of
+eval :: Form -> Dynamite Val
+eval (VSym s) =
+  Reader.asks (Map.lookup s) >>= \case
     Just v  -> pure v
     Nothing -> fail $ "unbound variable: " ++ unSym s
-eval env (VList (ff : args)) =
-  eval env ff >>= \case
-    VFun f -> f env args
+eval (VList (ff : args)) =
+  eval ff >>= \case
+    VFun f -> f args
     _      -> fail $ "not a function: " ++ show ff
-eval env v = pure v
+eval v = pure v
 
 class Arg a where
-  fromForm :: Env -> Form -> Dynamite a
+  fromForm :: Form -> Dynamite a
 
 instance Arg Val where
-  fromForm _ f = pure f
+  fromForm f = pure f
 
 instance Arg Integer where
-  fromForm _ (VInt n) = pure n
-  fromForm _ v        = fail $ "expected integer, got " ++ tag v
+  fromForm (VInt n) = pure n
+  fromForm v        = fail $ "expected integer, got " ++ tag v
 
 instance Arg Sym where
-  fromForm _ (VSym s) = pure s
-  fromForm _ v        = fail $ "expected symbol, got " ++ tag v
+  fromForm (VSym s) = pure s
+  fromForm v        = fail $ "expected symbol, got " ++ tag v
 
 newtype Eval a = Eval a
 instance Arg a => Arg (Eval a) where
-  fromForm env v = do v' <- eval env v
-                      Eval <$> fromForm env v'
+  fromForm v = do v' <- eval v
+                  fmap Eval $ fromForm v'
 
 class Erase a where
-  erase :: (Int, a -> Env -> [Form] -> Dynamite Val)
+  erase :: (Int, a -> [Form] -> Dynamite Val)
 
 instance Erase Val where
-  erase = (0, \v env [] -> pure v)
+  erase = (0, \v [] -> pure v)
 
 instance Erase (Dynamite Val) where
-  erase = (0, \act env [] -> act)
+  erase = (0, \act [] -> act)
 
 instance (Arg a, Erase e) => Erase (a -> e) where
-  erase = (n+1, \act env (a:as) -> do a' <- fromForm env a
-                                      f (act a') env as
+  erase = (n+1, \act (a:as) -> do a' <- fromForm a
+                                  f (act a') as
           ) where (n, f) = erase
 
-fn :: Erase e => String -> (Env -> e) -> (Sym, Val)
+fn :: Erase e => String -> e -> (Sym, Val)
 fn name body = (Sym name,
-                VFun $ \env args -> let m = length args in
-                                    if n == m then f (body env) env args
-                                              else fail $ name ++ " expected " ++ show n ++ " arguments, got " ++ show m
+                VFun $ \args -> let m = length args in
+                                if n == m then f body args
+                                          else fail $ name ++ " expected " ++ show n ++ " arguments, got " ++ show m
                ) where (n, f) = erase
 
 initialEnv :: Env
 initialEnv = Map.fromList
-  [ fn "+"    $ \env (Eval n1) (Eval n2) -> VInt (n1 + n2)
-  , fn "eval" $ \env (Eval (Eval x))     -> x :: Val
-  , fn "let"  $ \env sym (Eval v1) e2    -> eval (Map.insert sym v1 env) e2
+  [ fn "+"    $ \(Eval n1) (Eval n2) -> VInt (n1 + n2)
+  , fn "eval" $ \(Eval (Eval x))     -> x :: Val
+  , fn "let"  $ \sym (Eval v1) e2    -> Reader.local (Map.insert sym v1) (eval e2)
   -- TODO: make this more primitive and implement fun in userspace
-  , fn "fun"  $ \env sym body            -> VFun $ \env args -> eval (Map.insert sym (VList args) env) body
+  , fn "fun"  $ \sym body            -> VFun $ \args -> Reader.local (Map.insert sym (VList args)) (eval body)
   ]
 
 main :: IO ()
@@ -130,4 +140,4 @@ main = do
                         Left e -> pure $ Left $ "can't parse file " ++ show f ++ ": " ++ e
   getArgs >>= go [] >>= \case
     Left e -> hPutStrLn stderr e
-    Right forms -> print $ eval initialEnv (VList forms)
+    Right forms -> print $ Reader.runReaderT (runDynamite (eval (VList forms))) initialEnv
