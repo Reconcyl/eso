@@ -137,7 +137,7 @@
 
 ; like 'fix', but instead of the term getting itself as an argument,
 ; it gets its encoded form as an argument
-(define (refix term)
+(define (kleene term)
   (define fullterm `(compose ,term escape-encoded))
   (define fullterm-encoded (encode (laze fullterm)))
   (laze `(S S K ,fullterm-encoded I)))
@@ -146,5 +146,5 @@
   '(lambda (self input)
      (parse input (stringify self) (omega omega) 0)))
 
-(lazy-def 'main (refix 'main-of-main))
+(lazy-def 'main (kleene 'main-of-main))
 (dump 'main)
