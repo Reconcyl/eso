@@ -30,10 +30,14 @@
 (lazy-def   'pre2 'diag)
 (lazy-def       2 '(pre2 compose))
 (lazy-def   'pre3 '(presucc pre2))
+(lazy-def       3 '(pre3 compose))
 (lazy-def   'pre4 '(preomega pre2))
+(lazy-def       4 '(omega 2))
 (lazy-def   'pre5 '(presucc pre4))
 (lazy-def   'pre6 '(preoblong pre2))
+(lazy-def   'pre7 '(presucc pre6)) ; 19
 (lazy-def   'pre9 '(pre^ pre2 pre3))
+(lazy-def  'pre10 '(presucc pre9))
 (lazy-def  'pre12 '(preoblong pre3))
 (lazy-def  'pre13 '(presucc pre12))
 (lazy-def  'pre16 '($ pre2 (lambda (two) (S pre^ preomega two))))
@@ -42,14 +46,16 @@
 (lazy-def  'pre27 '(preomega pre3))
 (lazy-def      27 '(pre27 compose))
 (lazy-def  'pre28 '(presucc pre27))
+(lazy-def  'pre56 '(preoblong pre7)) ; 27
 (lazy-def  'pre80 '(pre* pre5 pre16))
 (lazy-def  'pre96 '($ pre2 (lambda (two) (pre* (preoblong two) (S pre^ preomega two))))) ; 41
 (lazy-def      96 '($ 2 (S (S omega (S S S) compose) (S I omega)))) ; 45
 (lazy-def 'pre105 '(pre* pre5 (presucc (preoblong pre4)))) ; 49
 (lazy-def     105 '(pre105 compose)) ; 57
 (lazy-def 'pre107 '(pre+ pre27 pre80)) ; TODO: this can probably be shorter
-(lazy-def 'pre115 '(2 (compose presucc (pre* pre2)) pre28)) ; 55
-(lazy-def     115 '(S (S S (compose (S (S I S)) (S I)) diag) pre28 compose)) ; 59
+(lazy-def 'pre114 '(pre* pre2 (presucc pre56))) ; 45
+(lazy-def 'pre115 '(presucc pre114)) ; 49
+(lazy-def     115 '(pre115 compose)) ; 57
 (lazy-def 'pre117 '(pre* pre9 pre13)) ; 45
 (lazy-def     117 '(pre117 compose)) ; 53
 (lazy-def     256 '($ 2 (lambda (x) ((x x) (x x))))) ; 23
