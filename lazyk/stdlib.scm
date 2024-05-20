@@ -22,7 +22,8 @@
 (lazy-def 'pre^ 'S)
 (lazy-def 'preomega '(diag pre^))
 (lazy-def 'oblong '(lambda (n) (* n (succ n))))
-(lazy-def 'preoblong '(S (S S S)))
+(lazy-def 'preoblong '(S (S S S))) ; x(1 + x)
+(lazy-def 'preoblong2 '(S (S S (S (S I S) S)))) ; x(2 + x)
 (lazy-def '(if-even x a b) '(x (S I K) 1 (K a) b)) ; the 'S I K' term was found by brute force search
 
 (lazy-def       0 '(K I))
@@ -36,7 +37,8 @@
 (lazy-def   'pre5 '(presucc pre4))
 (lazy-def   'pre6 '(preoblong pre2))
 (lazy-def   'pre7 '(presucc pre6)) ; 19
-(lazy-def   'pre9 '(pre^ pre2 pre3))
+(lazy-def   'pre8 '(pre^ pre3 pre2)) ; 21
+(lazy-def   'pre9 '(pre^ pre2 pre3)) ; 15
 (lazy-def  'pre10 '(presucc pre9))
 (lazy-def  'pre12 '(preoblong pre3))
 (lazy-def  'pre13 '(presucc pre12))
@@ -47,7 +49,7 @@
 (lazy-def      27 '(pre27 compose))
 (lazy-def  'pre28 '(presucc pre27))
 (lazy-def  'pre56 '(preoblong pre7)) ; 27
-(lazy-def  'pre80 '(pre* pre5 pre16))
+(lazy-def  'pre80 '(preoblong2 pre8)) ; 37
 (lazy-def  'pre96 '($ pre2 (lambda (two) (pre* (preoblong two) (S pre^ preomega two))))) ; 41
 (lazy-def      96 '($ 2 (S (S omega (S S S) compose) (S I omega)))) ; 45
 (lazy-def 'pre105 '(pre* pre5 (presucc (preoblong pre4)))) ; 49
