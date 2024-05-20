@@ -4,5 +4,6 @@
 /honeycomb/Memory
 /honeycomb/Memory.hi
 /honeycomb/Memory.o
-/honeycomb/zig-cache
-/honeycomb/zig-out
+/honeycomb/Honeycomb
+/honeycomb/Honeycomb.hi
+/honeycomb/Honeycomb.o
