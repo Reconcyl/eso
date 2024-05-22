@@ -31,11 +31,11 @@
            (K (K ($ pre115))) ; S case
            (K ($ pre105)) ; I case
            ($ pre107) ; K case
-           (lambda (n) (pair (n compose))))))
+           (lambda (n) (pair (n •))))))
 
 (lazy-def '(stringify-app s) '(lambda (_ _ _ _ _) s))
 (lazy-def '(stringify-recursor a b)
-  '(stringify-app (compose (pair 96) (S (compose compose ($ a)) ($ b) stringify-helper))))
+  '(stringify-app (• (pair 96) (S (• • ($ a)) ($ b) stringify-helper))))
 
 ; I am fairly confident that this function is correct.
 (lazy-def '(stringify encoded)
@@ -71,7 +71,7 @@
 
 (lazy-def 'encode-encoded-recursor
   '(lambda (a b)
-     (S (compose encode-encoded-app ($ a)) ($ b) encode-encoded-helper)))
+     (S (• encode-encoded-app ($ a)) ($ b) encode-encoded-helper)))
 
 (lazy-def '(encode-encoded x)
   '(x encode-encoded-recursor
@@ -84,7 +84,7 @@
 ; like 'fix', but instead of the term getting itself as an argument,
 ; it gets its encoded form as an argument
 (define (kleene term)
-  (define fullterm `(compose ,term escape-encoded))
+  (define fullterm `(• ,term escape-encoded))
   (define fullterm-encoded (encode (laze fullterm)))
   (laze `(S S K ,fullterm-encoded I)))
 
