@@ -1,0 +1,40 @@
+jot expressions:
+
+0      denotes I S K                                 = K I                better than `ki
+1      denotes (λ x y. I (x y))                      = I                x useless
+
+00     denotes K I S K                               = K                  worse than k
+01     denotes (λ x y. K I (x y)) = (λ x y. I)       = K² I               better than `k0
+
+000    denotes K S K                                 = S                  worse than s
+001    denotes (λ x y. K (x y))                      = • K                better than `s`kk
+010    denotes K (K I) S K                           = I                x useless
+011    denotes (λ x y. K (K I) (x y)) = (λ x y. K I) = K³ I               better than `k01
+
+0000   denotes                                         S S K              better than ``ssk (doesn't seem common)
+0001   denotes (λ x y. S (x y))                      = • S                better than `s`ks
+0010   denotes         S (K K) S K = K K K (S K)     = K² I             x useless
+0011   denotes (λ x y. S (K K) (x y))                = •² K               better than `s`k001
+0110   denotes K (K (K I)) S K                       = K I              x useless
+0111   denotes                                         K⁴ I               better than `k011
+
+00000  denotes         S S K S K                     = I                x useless
+00001  denotes (λ x y. S S K (x y))                  = • (S S K)          better than `s`k0000 (doesn't seem common)
+00010  denotes         • S S K                       = I                x useless
+00011  denotes (λ x y. • S (x y))                    = •² S               better than `s`k0001
+00110  denotes         • (• K) S K                   = K I              x useless
+00111  denotes                                       = •³ K               better than `s`k0011 (doesn't seem common)
+01110  denotes         K (K (K (K I))) S K           = K (K I)          x useless
+01111  denotes                                         K⁵ I               better than `k0111
+
+000010 denotes    • (S S K) S K                      = K I              x useless
+000011 denotes • (• (S S K))                         = •² (S S K)         better than `s`k00001 (doesn't seem common)
+000110 denotes    •² S S K                           = diag               worse than ``ss0
+000111 denotes • (•² S)                              = •³ S               better than `s`k00011
+001110 denotes    •³ K S K                           = K                x useless
+001111 denotes • (•³ K)                              = •⁴ K               better than `s`k00111 (doesn't seem common)
+011110 denotes    K⁵ I S K                           = K³ I             x useless
+011111 denotes                                         K⁶ I               better than `k01111 (doesn't seem common)
+
+for a bit string A, write [A] for what A denotes.
+then [A0] = λ x y. [A] (x y) = • [A].
