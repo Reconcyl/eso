@@ -329,8 +329,57 @@
 (define print-as-iota (print-as-generic "*" "*i*i*ii" "*i*i*i*ii" "*ii"))
 (define print-as-jot (print-as-generic "1" "11100" "11111000" "11111111100000"))
 
-(define (dump . terms)
-  (define (f term)
-    (display "\x1B;[1m") (display term) (display "\x1B;[m\t")
-    (print-as-unlambda (laze term)))
-  (for-each f terms))
+(define (collapse-ki-to-0 lazified-code)
+ (let self ((code lazified-code))
+   (if (or (equal? code '(s k))
+           (equal? code '(k i)))
+       '0
+       (expr-dispatch code
+        (lambda (leaf) leaf)
+        (lambda (f g) (list (self f) (self g)))
+        (lambda (var body)
+         (error #f "Unexpected lambda"))))))
+
+(define (get-spine lazified-code)
+  (let self ((code lazified-code) (spine '()))
+    (expr-dispatch code
+     (lambda (leaf) (cons leaf spine))
+     (lambda (f g)
+      (self f (cons g spine)))
+     (lambda (var body)
+      (error #f "Unexpected lambda")))))
+
+(define (print-as-medley lazified-code)
+ (define parts '()) ; reversed list of strings
+ (define parts-ends-with-0 #f)
+ (define (emit s)
+  (when (< 0 (string-length s))
+    (set! parts (cons s parts))
+    (set! parts-ends-with-0 (char=? #\0 (string-ref s (- (string-length s) 1))))))
+ (let self ((code (collapse-ki-to-0 lazified-code)))
+   (cond
+     ((eq? code 'i) (emit "i"))
+     ((eq? code 'k) (emit "k"))
+     ((eq? code 's) (emit "s"))
+     ((eq? code '0) (emit (if parts-ends-with-0 " 0" "0")))
+     (else
+      (let* ((spine (get-spine code))
+             (splen (length spine)))
+        (cond
+          ((> splen 3) (emit "(")
+                       (for-each self spine)
+                       (emit ")"))
+          (else        (emit (make-string (- splen 1) #\`))
+                       (for-each self spine)) )))))
+ (let ((medley (apply string-append (reverse parts))))
+   (display medley)
+   (display " (") (display (string-length medley)) (display ")\n") ))
+
+(define (dump-generic print-callback)
+  (lambda terms
+    (for-each (lambda (term)
+                (display "\x1B;[1m") (display term) (display "\x1B;[m\t")
+                (print-callback (laze term)))
+              terms)))
+
+(define dump (dump-generic print-as-unlambda))
