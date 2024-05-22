@@ -19,6 +19,7 @@
 (lazy-def '2n+2 '(S (S I (S I (S S (K I)))) S •)) ; 27
 (lazy-def '(+ a b) '(a succ b))
 (lazy-def '(pre+ a b) '(S (S a S) b))
+(lazy-def '(pre2+ a b) '(S (S a (S (S I S) S)) b))
 (lazy-def '(* a b) '(• a b))
 (lazy-def '(pre* a b) '(S (S I a) b))
 (lazy-def 'pre^ 'S)
@@ -44,22 +45,41 @@
 (lazy-def  'pre10 '(presucc pre9))
 (lazy-def  'pre12 '(preoblong pre3))
 (lazy-def  'pre13 '(presucc pre12))
-(lazy-def  'pre16 '($ pre2 (lambda (two) (S pre^ preomega two))))
+(lazy-def  'pre16 '(pre^ pre2 (preomega pre2))) ; 17
 (lazy-def      16 '($ 2 (lambda (two) (two two two))))
-(lazy-def  'pre25 '(pre^ pre2 pre5))
-(lazy-def  'pre27 '(preomega pre3))
+(lazy-def  'pre25 '($ pre2 (lambda (two) (pre^ two (presucc (preomega two)))))) ; 25
+(lazy-def  'pre27 '(preomega pre3)) ; 17
 (lazy-def      27 '(pre27 •)) ; 25
-(lazy-def  'pre28 '(presucc pre27))
+(lazy-def  'pre28 '(presucc pre27)) ; 21
+(lazy-def  'pre32 '(pre^ pre5 pre2)) ; 27
+(lazy-def      32 '(pre32 •)) ; 35
+(lazy-def  'pre33 '(presucc pre32)) ; 31
+(lazy-def      33 '(pre33 •)) ; 39
+(lazy-def  'pre42 '(preoblong pre6)) ; 23
+(lazy-def  'pre44 '(presucc (presucc pre42))) ; 31
 (lazy-def  'pre56 '(preoblong pre7)) ; 27
+(lazy-def  'pre72 '(preoblong pre8)) ; 29
 (lazy-def  'pre80 '(preoblong2 pre8)) ; 37
+(lazy-def  'pre87 '(pre* pre3 (presucc (presucc pre27)))) ; 43
 (lazy-def  'pre96 '($ pre2 (lambda (two) (pre* (preoblong two) (S pre^ preomega two))))) ; 41
 (lazy-def      96 '($ 2 (S (S omega (S S S) •) (S I omega)))) ; 45
+(lazy-def 'pre100 '(pre^ pre2 pre10)) ; 29
+(lazy-def     100 '(pre100 •))
+(lazy-def 'pre101 '(presucc pre100)) ; 31
+(lazy-def 'pre108 '(pre* pre4 pre27)) ; 37
+#;
+(lazy-def 'pre108 '(pre* pre27 pre4)) ; 37
+#;
+(lazy-def 'pre108 '(S (• S (S (S S K (S I I)))) presucc pre3)) ; 37
 (lazy-def 'pre105 '(pre* pre5 (presucc (preoblong pre4)))) ; 49
 (lazy-def     105 '(pre105 •)) ; 57
-(lazy-def 'pre107 '(pre+ pre27 pre80)) ; TODO: this can probably be shorter
+(lazy-def 'pre107 '(pre+ pre27 pre80)) ; 61 ; TODO: this can probably be shorter
+(lazy-def 'pre110 '(preoblong pre10)) ; 27
+(lazy-def 'pre111 '(presucc pre110)) ; 31
 (lazy-def 'pre114 '(pre* pre2 (presucc pre56))) ; 45
 (lazy-def 'pre115 '(presucc pre114)) ; 49
 (lazy-def     115 '(pre115 •)) ; 57
 (lazy-def 'pre117 '(pre* pre9 pre13)) ; 45
 (lazy-def     117 '(pre117 •)) ; 53
+(lazy-def 'pre256 '(preomega pre4)) ;
 (lazy-def     256 '($ 2 (lambda (x) ((x x) (x x))))) ; 23
