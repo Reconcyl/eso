@@ -9,6 +9,7 @@
 (lazy-def '($ x y) '(y x))
 (lazy-def 'omega '(lambda (x) (x x)))
 (lazy-def '(fix f) '(S I (• f) omega))
+(lazy-def 'fixalt '(fix (S I))) ; equivalent to fix, but shorter as a standalone combinator
 (lazy-def '(pair x y p) '(p x y))
 (lazy-def '(diag f x) '(f x x))
 
