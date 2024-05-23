@@ -1,0 +1,153 @@
+Dense encoding of data in SK combinators
+========================================
+
+Suppose we want to represent data in combinatory logic efficiently.
+One reasonable way is a tree of the form:
+
+  λ f. f
+         (f
+            α
+            β
+         )
+         (f
+            (f
+               γ
+               δ
+            )
+            ε
+         )
+
+Where α, β, γ, δ, ε, etc. are individual combinators.
+In CL, this looks like:
+
+  S (S I (S (S I (K α))
+                 (K β)))
+         (S (S I (S (S I (K γ))
+                         (K δ)))
+                 (K ε))
+
+For this to work, f only needs to be able to distinguish between
+S, K, and I (as well as its own return value) to interpret the data.
+
+These Ks are annoying, though. Maybe we can get rid of them?
+
+  S (S I (S (S I α)
+                 β))
+         (S (S I (S (S I γ)
+                         δ))
+                 ε)
+
+Now the tree looks like:
+
+  λ f. f
+         (f
+            (α f)
+            (β f)
+         )
+         (f
+            (f
+               (γ f)
+               (δ f)
+            )
+            (ε f)
+         )
+
+We've made the SKI-encoding more compact at the expense of making
+it more complicated to use the data.
+
+Figuring out how to get something out of this representation
+is the problem I'll solve here.
+
+Suppose we want f such that
+
+f (S f) = A
+f (K f) = B
+f (I f) = C
+
+For some given closed terms A, B, C.
+
+The input to f is either a unary or binary function, so f must
+ultimately "start" by supplying at least two arguments to its parameter.
+
+Let's give ourselves a bit of wiggle room by supposing
+f works by applying exactly three arguments:
+
+    f := λ x. x D E F
+
+f (S f) = S f D E F = f E (D E) F = E D E F (D E) F = A
+f (K f) = K f D E F = f E F       = E D E F F       = B
+f (I f) = I f D E F = f D E F     = D D E F E F     = C
+
+Let's focus on E. E is applied in two different places,
+once at the head of each equation. Its first three parameters
+are the same in both cases, so let's have it ignore those parameters:
+
+    E := K (K (K E₂))
+
+E₂ (D E) F  = A
+E₂ F        = B
+D D E F E F = C
+
+Now E₂ has the job of distinguishing between (D E) and F.
+
+Let's focus on D. It's applied in two different places,
+once to (D E) and once to D. It seems tricky to design
+D to be able to distinguish itself from its application
+to E in this way, so instead let's suppose D is constant
+in its first parameter:
+
+    D := K D₁
+
+E₂ D₁ F    = A
+E₂ F       = B
+D₁ E F E F = C
+
+Now it still seems hard to get D₁ to be able to recognize E,
+so maybe let's have it be constant as well:
+
+    D₁ := K D₂
+
+E₂ (K D₂) F = A
+E₂ F        = B
+D₂ F E F    = C
+
+Notice at this point that we don't really require F to be very smart.
+Let's make it a boolean so it's as easy as possible to distinguish
+from other values:
+
+    F := K
+
+E₂ (K D₂) K = A
+E₂ K        = B
+D₂ K E K    = C
+
+Since K is a binary function, E₂ needs to distinguish its parameter
+by first applying it to two arguments.
+
+Let's be optimistic and suppose that's all it needs:
+
+    E₂ := λ x. x E₃ E₄
+
+(K D₂) E₃ E₄ K = D₂ E₄ K = A
+K      E₃ E₄   =      E₃ = B
+D₂ K E K                 = C
+
+Now D₂ just needs to distinguish between E₄ (a term we completely control)
+and K. We could set E₄ to (K I), but let's be optimistic and try to
+make D₂ work by applying just a *single* argument to its parameter:
+
+    D₂ := λ a. a D₃
+
+E₄ D₃ K          = A
+K  D₃ E K = D₃ K = C
+
+Now we can simply choose
+
+    D₃ := K C
+    E₄ := K (K A)
+
+And our final term is therefore:
+
+    f := λ x. x (K (K (λ a. a (K C)))) (K (K (K (λ b. b B (K (K A)))))) K
+       = S (S (S I (K (K (K (S I (K (K C))))))) (K (K (K (K (S (S I (K B)) (K (K (K A))))))))) (K K)
+       = S (S (S I (K³ (S I (K² C)))) (K⁴ (S (S I (K B)) (K³ A)))) (K K)
