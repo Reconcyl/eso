@@ -1,8 +1,5 @@
 (load "stdlib.scm")
 
-(define (dump-quiet tm)
-  (print-as-medley (laze tm)))
-
 ;  H   e   l   l   o  ,     W   o   r   l   d  !
 ; 72 101 108 108 111 44 32 87 111 114 108 100 33
 
@@ -22,7 +19,7 @@
                                                  (cc pre33
                                                      (fix (pair 256)))))))))))))))) ; 703
 
-(dump-quiet
+(dump
   '(K (S ($ pre72)
        (S ($ pre101)
         (2 (S ($ pre108))
