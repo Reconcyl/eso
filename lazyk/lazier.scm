@@ -329,15 +329,6 @@
 (define print-as-iota (print-as-generic "*" "*i*i*ii" "*i*i*i*ii" "*ii"))
 (define print-as-jot (print-as-generic "1" "11100" "11111000" "11111111100000"))
 
-(define (get-spine lazified-code)
-  (let self ((code lazified-code) (spine '()))
-    (expr-dispatch code
-     (lambda (leaf) (cons leaf spine))
-     (lambda (f g)
-      (self f (cons g spine)))
-     (lambda (var body)
-      (error #f "Unexpected lambda")))))
-
 (define (dump-generic print-callback)
   (lambda terms
     (for-each (lambda (term)
