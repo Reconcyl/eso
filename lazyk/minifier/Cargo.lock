@@ -53,7 +53,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "minifier"
+name = "lazyk_minifier"
+version = "0.1.0"
+dependencies = [
+ "imbl",
+ "indexmap",
+ "lazyk_minifier_core",
+]
+
+[[package]]
+name = "lazyk_minifier_chez_dylib"
+version = "0.1.0"
+dependencies = [
+ "lazyk_minifier_core",
+]
+
+[[package]]
+name = "lazyk_minifier_core"
 version = "0.1.0"
 dependencies = [
  "imbl",
