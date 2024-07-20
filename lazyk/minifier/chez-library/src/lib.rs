@@ -22,7 +22,7 @@ use std::ffi;
 // The main wrinkle is memory management. Chez Scheme doesn't impose any requirements
 // on how the char* returned from the function should be allocated, but it also doesn't
 // take responsibility for freeing it. So what we do is keep a global buffer to store the
-// result that Gs reused between calls.
+// result that is reused between calls.
 
 thread_local! {
     static OUT_BUFFER: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
@@ -31,7 +31,7 @@ thread_local! {
 #[no_mangle]
 pub unsafe extern "C" fn lazyk_minify(ptr: *const ffi::c_char) -> *const ffi::c_char {
     match std::panic::catch_unwind(|| {
-        // SAFETY: guarantees this is a NUL-terminated array
+        // SAFETY: Chez guarantees this is a NUL-terminated array
         let slice = ffi::CStr::from_ptr(ptr).to_bytes();
         OUT_BUFFER.with_borrow_mut(|buf| {
             buf.clear();
