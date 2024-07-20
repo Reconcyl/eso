@@ -30,7 +30,8 @@
                                        (with-output-to-string (lambda () (display name)))
                                        "\x1b;[m\t...): actual size is "
                                        (number->string actual-size)
-                                       "\n" )))))))))
+                                       "\n" )
+                        (current-error-port) ))))))))
 
 (lazy-def 'I 'i)
 (lazy-def 'K 'k)
