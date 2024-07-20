@@ -1,6 +1,36 @@
 (load "lazier.scm")
 (load "minifier.scm")
 
+(define-syntax overload-arity
+  (syntax-rules ()
+    ((_ (arity func) ...)
+     (lambda args
+       (define n (length args))
+       (case n
+         ((arity) (apply func args)) ...
+         (else (error #f (string-append "function did not expect " (number->string n) " arguments"))) )))))
+
+(define lazy-def
+  (let ((lazy-def-old lazy-def))
+    (overload-arity
+      (2 lazy-def-old)
+      (3 (lambda (expected-size name body)
+           (define new-pair (lazy-def-old name body))
+           (define actual-size (string-length (minify (dump-to-string (cdr new-pair)))))
+           (when (not (= expected-size actual-size))
+             (let* ((fatal (< expected-size actual-size))
+                    (diagnostic
+                      (if fatal "\x1B;[1m\x1B;[91m" #; bold-red
+                                "\x1B;[1m\x1B;[93m" #; bold-yellow)))
+               (display (string-append diagnostic
+                                       "warning\x1B;[m: "
+                                       "(lazy-def "
+                                       (number->string expected-size)
+                                       " "
+                                       (with-output-to-string (lambda () (display name)))
+                                       " ...):\t\tactual size is "
+                                       (number->string actual-size)
+                                       "\n" )))))))))
 
 (lazy-def 'I 'i)
 (lazy-def 'K 'k)
