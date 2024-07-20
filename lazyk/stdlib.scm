@@ -29,7 +29,7 @@
 (lazy-def 'oblong '(lambda (n) (* n (succ n))))
 (lazy-def 'preoblong '(S (S S S))) ; x(1 + x)
 (lazy-def 'preoblong2 '(S (S S (S (S I S) S)))) ; x(2 + x)
-(lazy-def '(if-even x a b) '(x (S I K) 1 (K a) b)) ; the 'S I K' term was found by brute force search
+(lazy-def '(if-even x a b) '(x (S I K) I (K a) b)) ; the 'S I K' term was found by brute force search
 
 (lazy-def       0 '(K I))
 (lazy-def       1 'I)
