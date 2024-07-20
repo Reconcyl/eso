@@ -336,4 +336,9 @@
                 (print-callback (laze term)))
               terms)))
 
-(define dump (dump-generic print-as-unlambda))
+(define (dump-to-string-generic print-callback)
+  (lambda (term)
+    (with-output-to-string (lambda () (print-callback (laze term)))) ))
+
+(define dump           (dump-generic           print-as-unlambda))
+(define dump-to-string (dump-to-string-generic print-as-unlambda))
