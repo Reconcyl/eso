@@ -40,12 +40,12 @@
 (define lazy-defs '())
 
 (define (lazy-def name body)
-  (set! lazy-defs
-        (cons (if (pair? name)
-                  (cons (car name)
-                        (curry-lambda (cdr name) (curry-exp body)) )
-                  (cons name (curry-exp body)) )
-              lazy-defs )))
+  (define new-pair (if (pair? name)
+                       (cons (car name)
+                             (curry-lambda (cdr name) (curry-exp body)) )
+                       (cons name (curry-exp body)) ))
+  (set! lazy-defs (cons new-pair lazy-defs))
+  new-pair)
 
 (define (lazy-def-lookup name)
   (assv name lazy-defs) )
