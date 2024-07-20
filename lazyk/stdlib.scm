@@ -26,9 +26,9 @@
                                        "warning\x1B;[m: "
                                        "(lazy-def "
                                        (number->string expected-size)
-                                       " "
+                                       " \x1B;[92m"
                                        (with-output-to-string (lambda () (display name)))
-                                       " ...):\t\tactual size is "
+                                       "\x1b;[m\t ...): actual size is "
                                        (number->string actual-size)
                                        "\n" )))))))))
 
