@@ -5,7 +5,7 @@
 
 (lazy-def '(cc n) '(pair (n compose)))
 
-(lazy-def 619 'hello1
+(lazy-def 610 'hello1
   '(K (cc pre72
           (cc pre101
               (2 (cc pre108)
@@ -20,7 +20,7 @@
                                                  (cc pre33
                                                      (fix (pair 256)) ))))))))))))))
 
-(lazy-def 555 'hello2
+(lazy-def 554 'hello2
   '(K (S ($ pre72)
        (S ($ pre101)
         (2 (S ($ pre108))
