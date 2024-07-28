@@ -4,7 +4,8 @@
 ; 72 101 108 108 111 44 32 87 111 114 108 100 33
 
 (lazy-def '(cc n) '(pair (n compose)))
-#;(dump-quiet
+
+(lazy-def 619 'hello1
   '(K (cc pre72
           (cc pre101
               (2 (cc pre108)
@@ -17,9 +18,9 @@
                                          (cc pre108
                                              (cc pre100
                                                  (cc pre33
-                                                     (fix (pair 256)))))))))))))))) ; 703
+                                                     (fix (pair 256)) ))))))))))))))
 
-(dump
+(lazy-def 555 'hello2
   '(K (S ($ pre72)
        (S ($ pre101)
         (2 (S ($ pre108))
@@ -32,6 +33,7 @@
                (S ($ pre108)
                 (S ($ pre100)
                  (S ($ pre33)
-                    (compose fixalt ($ pre256))
-                    )))))))))))
-       (lambda (n) (pair (n compose))) ))) ; 633
+                    (compose fixalt ($ pre256)) )))))))))))
+       (lambda (n) (pair (n compose))) )))
+
+(dump 'hello2)
