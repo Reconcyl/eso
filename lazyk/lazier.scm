@@ -329,12 +329,16 @@
 (define print-as-iota (print-as-generic "*" "*i*i*ii" "*i*i*i*ii" "*ii"))
 (define print-as-jot (print-as-generic "1" "11100" "11111000" "11111111100000"))
 
+(define quiet? (not (string=? "" (or (getenv "LAZIER_QUIET") ""))))
+
 (define (dump-generic print-callback)
-  (lambda terms
-    (for-each (lambda (term)
-                (display "\x1B;[1m") (display term) (display "\x1B;[m\t")
-                (print-callback (laze term)))
-              terms)))
+  (if quiet?
+    (lambda terms '())
+    (lambda terms
+      (for-each (lambda (term)
+                  (display "\x1B;[1m") (display term) (display "\x1B;[m\t")
+                  (print-callback (laze term)))
+                terms ))))
 
 (define (dump-to-string-generic print-callback)
   (lambda (term)
