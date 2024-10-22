@@ -1,5 +1,6 @@
 exec
 ppx
+ppx.o
 zig-cache/
 /*.imma
 /*.immi

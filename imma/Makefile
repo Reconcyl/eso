@@ -9,4 +9,4 @@ ppx: ppx.zig
 
 .PHONY: clean
 clean:
-	rm -rf exec ppx zig-cache
+	rm -rf exec ppx ppx.o zig-cache
