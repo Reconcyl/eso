@@ -11,15 +11,12 @@ pub fn main() !void {
     var args = std.process.args();
     defer args.deinit();
 
-    const exe_name = try args.next(alloc) orelse @panic("can't get exe name");
-    defer alloc.free(exe_name);
+    const exe_name = args.next() orelse @panic("can't get exe name");
 
-    const in_file = try args.next(alloc) orelse usage(exe_name);
-    defer alloc.free(in_file);
-    const out_file = try args.next(alloc) orelse usage(exe_name);
-    defer alloc.free(out_file);
+    const in_file = args.next() orelse usage(exe_name);
+    const out_file = args.next() orelse usage(exe_name);
 
-    if (args.next(alloc)) |_| usage(exe_name);
+    if (args.next()) |_| usage(exe_name);
 
     const code = blk: {
         const file = try std.fs.cwd().openFile(in_file, .{});
@@ -46,7 +43,7 @@ pub fn main() !void {
     try save(&file);
 }
 
-fn usage(exe_name: []u8) noreturn {
+fn usage(exe_name: []const u8) noreturn {
     const stderr = std.io.getStdErr().writer();
     stderr.print("Usage: {s} [infile] [outfile]\n", .{exe_name}) catch {};
     std.process.exit(1);
@@ -63,7 +60,7 @@ var parse_err_is_owned: bool = false;
 fn parse(alloc: Allocator, code: []u8) !void {
     label_dict = try LabelDict.init(alloc);
     defer label_dict.deinit();
-    std.mem.set(u16, &image, 0);
+    @memset(&image, 0);
     var rest = code;
     while (nextLine(&rest)) |line| try parseLine(line);
     try label_dict.assertNoUndefined();
@@ -112,7 +109,7 @@ const ParseState = struct {
 
     fn update(self: *Self, c: u8, c_ptr: *const u8) !Res {
         switch (self.mode) {
-            .none => if (ascii.isSpace(c) or c == ',') {
+            .none => if (ascii.isWhitespace(c) or c == ',') {
                 return .advance;
             } else if (c == ';') {
                 return .stop;
@@ -130,10 +127,10 @@ const ParseState = struct {
             } else if (c == '"') {
                 self.mode = .str;
                 return .advance;
-            } else if (ascii.isAlpha(c)) {
+            } else if (ascii.isAlphabetic(c)) {
                 self.mode = .label;
                 // this is the easiest way to do it unfortunately
-                self.cur_label.ptr = @ptrCast([*]const u8, c_ptr);
+                self.cur_label.ptr = @ptrCast(c_ptr);
                 self.cur_label.len = 0;
                 return .none;
             } else if (c == '?') {
@@ -187,7 +184,7 @@ const ParseState = struct {
                 return .none;
             },
 
-            .label => if (ascii.isAlNum(c)) {
+            .label => if (ascii.isAlphanumeric(c)) {
                 self.cur_label.len += 1;
                 return .advance;
             } else if (c == ':') {
@@ -269,10 +266,12 @@ const ParseState = struct {
 
 fn emit(num: u16) !void {
     image[image_pos] = num;
-    if (@addWithOverflow(u16, image_pos, 1, &image_pos)) {
-        parse_err = "the image is too large";
-        return error.NoParse;
-    }
+    image_pos = std.math.add(u16, image_pos, 1) catch |e| switch (e) {
+        error.Overflow => {
+            parse_err = "the image is too large";
+            return error.NoParse;
+        },
+    };
 }
 
 fn emitRelative(delta: u16) !void {
@@ -312,7 +311,7 @@ const LabelDict = struct {
             "num",
             "chi",
         };
-        inline for (opcodes) |name, i| {
+        inline for (opcodes, 0..) |name, i| {
             try entries.putNoClobber(name, .{ .pos = i });
         }
         return LabelDict{ .entries = entries };
@@ -341,7 +340,7 @@ const LabelDict = struct {
     }
 
     fn define(self: *LabelDict, name: []const u8) !void {
-        var res = try self.entries.getOrPut(name);
+        const res = try self.entries.getOrPut(name);
         if (res.found_existing) {
             switch (res.value_ptr.*) {
                 .pos => {
