@@ -104,9 +104,9 @@ A Makefile is provided for compiling the program with MLton.
 
 ```
 $ make mlton
-$ # program credit: hyper-neutrino
-$ # -Ob means binary output; -Rn means to ignore the return value
-$ ./main -ObRn -c '(){}[(){}[(){}[(){}[(){}[(){}[(){}[(){}(<[{<({}){}>}{<({})({}){}>}][{<({})({}){}>}{<({}){}>}]>)((((<><<>()>[{<({}){}>}<{<({}){}>}{<({})({})({})({}){}>}>])[<><<>()>]{<({})({})({})({})({})({}){}>}))[<><<>()>]{<({})({}){}>})](<{<({})({})({}){}>}[<><<>()><{<({}){}>}{<({})({})({})({}){}>}>]>)]({<({})({})({})({}){}>}{<({}){}>})](<{<({})({}){}>}[<><<>()><{<({})({})({}){}>}{<({})({})({})({})({})({}){}>}>]>)](([{<({}){}>}<{<({}){}>}{<({})({})({})({}){}>}>][<><<>()>][<><<>()>[<{<({}){}>}{<({})({})({})({}){}>}>]])[<><<>()>]{<({})({}){}>})]([{<({}){}>}<{<({}){}>}{<({})({})({})({}){}>}>][<><<>()>][{<({})({}){}>}{<({}){}>}])]({<({}){}>}<{<({}){}>}{<({})({})({})({}){}>}>)](<><<>()>[{<({})({})({})({}){}>}{<({}){}>}])'
+$ # -In means to not accept input; -Ob means to treat the output as Unicode;
+$ # -Rn means to ignore the return value
+$ ./main -InOuRn examples/hello.flurry
 Hello, World!
 ```
 
@@ -116,12 +116,9 @@ It can also compile with [Standard ML of New Jersey]:
 $ make smlnj
 $ # creates a heap image file, whose name varies by target
 $ heap_file=( main_smlnj.* )
-$ # program credit: me
-$ echo '{{}{<{}(<><<>()>{})>}[(<>())()]}{}' >factorial.flurry
-$ # without `-c`, the program is run from a file
 $ # -Ii means integer input; -On means to ignore the stack for output;
 $ # -Ri means to treat the return value as an integer
-$ echo 20 | sml @SMLload="$heap_file" -IiOnRi factorial.flurry
+$ echo 20 | sml @SMLload="$heap_file" -IiOnRi examples/factorial.flurry
 2432902008176640000
 ```
 
