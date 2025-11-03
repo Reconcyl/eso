@@ -28,6 +28,8 @@ struct
 
   structure E = Expr
 
+  type purity = bool
+
   datatype value
     = K
     | K1 of value
@@ -35,7 +37,7 @@ struct
     | S1 of value
     | S2 of value * value
     | I
-    | Comp of value * value
+    | Comp of purity * value * value
     | Block of E.expr vector
     | ChurchSucc
     | ChurchNum of int
@@ -45,6 +47,27 @@ struct
     | TestFail
     | MagicInput of unit -> int option
     | MagicOutput of value -> unit
+
+  (* is applying this term to any argument guaranteed not to have side effects? *)
+  fun isPure K = true
+    | isPure (K1 _) = true
+    | isPure S = true
+    | isPure (S1 _) = true
+    | isPure (S2 _) = false (* be conservative *)
+    | isPure I = true
+    | isPure (Comp (p, _, _)) = p
+    | isPure (Block _) = false
+    | isPure ChurchSucc = true (* S1 (Comp (true, S, K)) *)
+    | isPure (ChurchNum n) = true
+    | isPure (ChurchNum1 (0, _)) = false
+    | isPure (ChurchNum1 (_, f)) = isPure f
+    | isPure (TestN _) = true
+    | isPure TestSucc = true
+    | isPure TestFail = true
+    | isPure (MagicInput _) = false
+    | isPure (MagicOutput _) = false
+
+  fun makeComp (f, g) = Comp (isPure f andalso isPure g, f, g)
 
   type ctx = { stack: (int * value list) ref }
 
@@ -70,7 +93,7 @@ struct
          (K, x) => K1 x
        | (K1 x, _) => x
        | (S, K) => K1 I (* this transformation is not always correct! *)
-       | (S, Comp (S, K)) => ChurchSucc
+       | (S, Comp (_, S, K)) => ChurchSucc
        | (S, x) => S1 x
        | (S1 x, y) => S2 (x, y)
        | (S2 (x, y), z) =>
@@ -79,12 +102,12 @@ struct
              val yz = apply (ctx, y, z)
            in apply (ctx, xz, yz) end
        | (I, x) => x
-       | (Comp (f, g), x) => apply (ctx, f, apply (ctx, g, x))
+       | (Comp (_, f, g), x) => apply (ctx, f, apply (ctx, g, x))
        | (Block exprs, x) => (push (ctx, x); reduce (ctx, exprs))
        | (ChurchSucc, K1 I) => ChurchNum 1
        | (ChurchSucc, I) => ChurchNum 2
        | (ChurchSucc, ChurchNum n) => ChurchNum (n + 1)
-       | (ChurchSucc, x) => S2 (Comp (S, K), x)
+       | (ChurchSucc, x) => S2 (Comp (true, S, K), x)
        | (ChurchNum n, ChurchNum1 (m, f)) => ChurchNum1 (n * m, f)
        | (ChurchNum n, f) => ChurchNum1 (n, f)
        | (ChurchNum1 (n, ChurchSucc), K1 I) => ChurchNum n
@@ -110,24 +133,6 @@ struct
 
   and reduceComp (ctx, exprs): value =
     let
-      (* is applying this term to an argument guaranteed not to have side effects? *)
-      fun pure K = true
-        | pure (K1 _) = true
-        | pure S = true
-        | pure (S1 _) = true
-        | pure (S2 _) = false (* be conservative *)
-        | pure I = true
-        | pure (Comp (f, g)) = pure f andalso pure g
-        | pure (Block _) = false
-        | pure ChurchSucc = true (* S1 (Comp (S, K)) *)
-        | pure (ChurchNum n) = true
-        | pure (ChurchNum1 (0, _)) = false
-        | pure (ChurchNum1 (_, f)) = pure f
-        | pure (TestN _) = true
-        | pure TestSucc = true
-        | pure TestFail = true
-        | pure (MagicInput _) = false
-        | pure (MagicOutput _) = false
 
       (* compose f with the results of all expressions in the input vector starting from gIdx *)
       fun composeAt (f, gIdx) =
@@ -136,15 +141,15 @@ struct
             val g = eval (ctx, Vector.sub (exprs, gIdx))
 
             fun reduceTo x = composeAt (x, gIdx + 1)
-            fun continue () = Comp (f, reduceTo g)
+            fun continue () = makeComp (f, reduceTo g)
           in
             case (f, g) of
                  (I, _) => reduceTo g
                | (_, I) => reduceTo f
                | (ChurchNum 1, _) => reduceTo g
                | (_, ChurchNum 1) => reduceTo f
-               | (K1 _, g) => if pure g then reduceTo f else continue ()
-               | (ChurchNum 0, g) => if pure g then reduceTo f else continue ()
+               | (K1 _, g) => if isPure g then reduceTo f else continue ()
+               | (ChurchNum 0, g) => if isPure g then reduceTo f else continue ()
                | (ChurchNum n, K1 _) => reduceTo g (* valid because n must be >0 *)
                | (ChurchNum n, ChurchNum m) => reduceTo (ChurchNum (n * m))
                | _ => continue ()
@@ -212,15 +217,15 @@ struct
 
           datatype Pos = Hd | Arg | Cmp
 
-          fun go (_,   K)          = s "()"
-            | go (Hd,  K1 x)       = (s "()"; go (Arg, x))
-            | go (_,   S)          = s "<>"
-            | go (Hd,  S1 x)       = (s "<>"; go (Arg, x))
-            | go (Hd,  S2 (x,y))   = (s "<>"; go (Arg, x); go (Arg, y))
-            | go (_,   I)          = s "{{}}"
-            | go (Cmp, Comp (x,y)) = (go (Cmp, x); go (Cmp, y))
-            | go (_,   Comp (x,y)) = (c #"<"; go (Cmp, x); go (Cmp, y); c #">")
-            | go (_,   Block es)   =
+          fun go (_,   K)            = s "()"
+            | go (Hd,  K1 x)         = (s "()"; go (Arg, x))
+            | go (_,   S)            = s "<>"
+            | go (Hd,  S1 x)         = (s "<>"; go (Arg, x))
+            | go (Hd,  S2 (x,y))     = (s "<>"; go (Arg, x); go (Arg, y))
+            | go (_,   I)            = s "{{}}"
+            | go (Cmp, Comp (_,x,y)) = (go (Cmp, x); go (Cmp, y))
+            | go (_,   Comp (_,x,y)) = (c #"<"; go (Cmp, x); go (Cmp, y); c #">")
+            | go (_,   Block es)     =
                 (c #"{";
                  Vector.app (fn e => Syntax.display (os, e)) es;
                  c #"}")
