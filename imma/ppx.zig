@@ -29,11 +29,13 @@ pub fn main() !void {
 
     parse(alloc, code) catch |e| switch (e) {
         error.NoParse => {
-            const stderr = std.io.getStdErr().writer();
-            try stderr.print("{s}:{}: {s}\n", .{ in_file, line_no + 1, parse_err });
-            if (parse_err_is_owned) {
+            defer if (parse_err_is_owned) {
                 alloc.free(parse_err);
-            }
+            };
+            var buffer: [128]u8 = undefined;
+            var stderr = std.fs.File.stderr().writer(&buffer);
+            try stderr.interface.print("{s}:{}: {s}\n", .{ in_file, line_no + 1, parse_err });
+            try stderr.interface.flush();
             std.process.exit(1);
         },
         error.OutOfMemory => return e,
@@ -44,8 +46,10 @@ pub fn main() !void {
 }
 
 fn usage(exe_name: []const u8) noreturn {
-    const stderr = std.io.getStdErr().writer();
-    stderr.print("Usage: {s} [infile] [outfile]\n", .{exe_name}) catch {};
+    var buffer: [64]u8 = undefined;
+    var stderr = std.fs.File.stderr().writer(&buffer);
+    stderr.interface.print("Usage: {s} [infile] [outfile]\n", .{exe_name}) catch {};
+    stderr.interface.flush() catch {};
     std.process.exit(1);
 }
 
@@ -318,6 +322,7 @@ const LabelDict = struct {
     }
 
     fn refer(self: *LabelDict, name: []const u8, delta: u16) !u16 {
+        const ally = self.entries.allocator;
         var res = try self.entries.getOrPut(name);
 
         var fwd_refs: *ArrayList(LabelFwdRef) = undefined;
@@ -327,12 +332,12 @@ const LabelDict = struct {
                 .fwd_refs => |*refs| fwd_refs = refs,
             }
         } else {
-            const refs = ArrayList(LabelFwdRef).init(self.entries.allocator);
+            const refs = ArrayList(LabelFwdRef).empty;
             res.value_ptr.* = .{ .fwd_refs = refs };
             fwd_refs = &res.value_ptr.fwd_refs;
         }
 
-        try fwd_refs.append(.{
+        try fwd_refs.append(ally, .{
             .pos = image_pos,
             .delta = delta,
         });
@@ -340,6 +345,7 @@ const LabelDict = struct {
     }
 
     fn define(self: *LabelDict, name: []const u8) !void {
+        const ally = self.entries.allocator;
         const res = try self.entries.getOrPut(name);
         if (res.found_existing) {
             switch (res.value_ptr.*) {
@@ -352,11 +358,11 @@ const LabelDict = struct {
                     parse_err_is_owned = true;
                     return error.NoParse;
                 },
-                .fwd_refs => |refs| {
+                .fwd_refs => |*refs| {
                     for (refs.items) |fwd_ref| {
                         image[fwd_ref.pos] = image_pos +% fwd_ref.delta;
                     }
-                    refs.deinit();
+                    refs.deinit(ally);
                 },
             }
         }
@@ -380,9 +386,10 @@ const LabelDict = struct {
     }
 
     fn deinit(self: *LabelDict) void {
+        const ally = self.entries.allocator;
         var iter = self.entries.iterator();
         while (iter.next()) |entry| switch (entry.value_ptr.*) {
-            .fwd_refs => |*refs| refs.deinit(),
+            .fwd_refs => |*refs| refs.deinit(ally),
             .pos => {},
         };
         self.entries.deinit();
