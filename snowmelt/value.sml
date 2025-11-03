@@ -251,4 +251,4 @@ struct
           go (Hd, value)
         end
 
-end : VALUE where type outstream = Io.outstream
+end
