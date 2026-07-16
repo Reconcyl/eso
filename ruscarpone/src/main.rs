@@ -1,6 +1,5 @@
 use std::env;
-use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::process::exit;
 
 mod interpreter;
@@ -21,10 +20,14 @@ fn read_line(stdin: &io::Stdin, prompt: &str) -> Result<Option<String>, String> 
 }
 
 fn run() -> Result<(), String> {
-    let mut files = Vec::new();
+    let mut files: Vec<String> = Vec::new();
+    let mut debug = false;
     for file_name in env::args().skip(1) {
-        let file: File = File::open(file_name).map_err(|e| e.to_string())?;
-        files.push(io::BufReader::new(file));
+        if file_name == "-d" {
+            debug = true;
+            continue;
+        }
+        files.push(std::fs::read_to_string(file_name).map_err(|e| e.to_string())?);
     }
     if files.is_empty() {
         repl()
@@ -32,9 +35,10 @@ fn run() -> Result<(), String> {
         let stdin = io::stdin();
         let mut state = interpreter::State::new(stdin.lock(), io::stdout());
         for file in files {
-            for byte in file.bytes() {
-                state.run([byte.map_err(|e| e.to_string())? as char])?;
-            }
+            state.run(file.chars())?;
+        }
+        if debug {
+            state.debug_stack_contents();
         }
         Ok(())
     }
