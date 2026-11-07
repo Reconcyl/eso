@@ -1,4 +1,4 @@
-use structopt::StructOpt;
+use clap::Parser;
 use termion::color;
 
 use std::fs;
@@ -9,16 +9,16 @@ mod state;
 
 use state::World;
 
-#[derive(StructOpt)]
-#[structopt(name="digfill", no_version)]
+#[derive(Parser)]
+#[command(name="digfill")]
 struct Options {
-    #[structopt(short)] debug: bool,
-    #[structopt(short)] eval: bool,
+    #[arg(short)] debug: bool,
+    #[arg(short)] eval: bool,
     arg: String,
 }
 
 fn main() {
-    let options = Options::from_args();
+    let options = Options::parse();
 
     let code = if options.eval {
         options.arg
