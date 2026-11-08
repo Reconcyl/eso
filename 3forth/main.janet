@@ -106,11 +106,9 @@
     (while (not (empty? (dyn *3forth-cont*)))
       (when debug?
         (debug-forth))
-      (def insn (array/pop (dyn *3forth-cont*)))
-      (pat/match insn
-        |tuple?  (push insn)
-        |symbol? (if-let [f (dict insn)] (f)
-                   (errorf "unknown insn: %m" insn) )))
+      (pat/match (array/pop (dyn *3forth-cont*))
+        (and |tuple? insn) (push insn)
+        (and |symbol? sym) ((or (dict sym) (errorf "unknown insn: %m"))) ))
     [;(dyn *3forth-stack*)] ))
 
 (defn push-definition [name body]
